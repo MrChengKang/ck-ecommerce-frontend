@@ -8,6 +8,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard";
+import AuthPage from "./AuthPage";
 
 // --- 1. 商品詳情頁 ---
 function ProductDetail({ addToCart }) {
@@ -215,77 +216,6 @@ function CartSidebar({
   );
 }
 
-// --- 5. 登入頁面 ---
-function Login({ setIsLoggedIn, setUserRole }) {
-  const [credentials, setCredentials] = useState({
-    username: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
-  const navigate = useNavigate();
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    try {
-      const response = await fetch("http://localhost:8080/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
-      });
-
-      const data = await response.json(); // 👈 先轉成 JSON
-
-      if (response.ok) {
-        // 這裡要跟 Java 回傳的 Key 對應
-        localStorage.setItem("ck_token", data.token);
-        localStorage.setItem("ck_role", data.role); // 👈 確保 Java 有 response.put("role", ...)
-
-        setIsLoggedIn(true);
-        setUserRole(data.role);
-
-        alert("Login Successful!");
-        if (data.role === "ADMIN") {
-          navigate("/admin"); // 👈 老闆登入直接送去後台
-        } else {
-          navigate("/"); // 👈 一般用戶送回首頁
-        }
-      } else {
-        // 如果後端回傳 401，顯示後端給的錯誤訊息
-        setError(data.message || "Invalid username or password");
-      }
-    } catch (err) {
-      setError("Server Error! 請檢查 Java 後端是否有紅線。");
-    }
-  };
-  return (
-    <div className="max-w-md mx-auto mt-20 p-10 border rounded-3xl shadow-xl">
-      <h2 className="text-3xl font-black mb-6 italic">LOGIN</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          className="w-full p-4 bg-gray-100 rounded-xl"
-          placeholder="USERNAME"
-          onChange={(e) =>
-            setCredentials({ ...credentials, username: e.target.value })
-          }
-        />
-        <input
-          className="w-full p-4 bg-gray-100 rounded-xl"
-          type="password"
-          placeholder="PASSWORD"
-          onChange={(e) =>
-            setCredentials({ ...credentials, password: e.target.value })
-          }
-        />
-        <button className="w-full bg-black text-white py-4 rounded-full font-bold uppercase">
-          Sign In
-        </button>
-      </form>
-    </div>
-  );
-}
-
 // --- 6. 主程式 ---
 export default function App() {
   const [products, setProducts] = useState([]);
@@ -425,7 +355,10 @@ export default function App() {
           <Route
             path="/login"
             element={
-              <Login setIsLoggedIn={setIsLoggedIn} setUserRole={setUserRole} />
+              <AuthPage
+                setIsLoggedIn={setIsLoggedIn}
+                setUserRole={setUserRole}
+              />
             }
           />
         </Routes>
