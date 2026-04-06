@@ -292,6 +292,8 @@ export default function App() {
       .catch((err) => console.error(err));
   };
 
+  const isAdminPath = window.location.pathname.startsWith("/admin");
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -320,65 +322,69 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-white text-gray-900 selection:bg-black selection:text-white font-sans antialiased">
-        <CartSidebar
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          cart={cart}
-          updateQuantity={(id, d) =>
-            setCart((prev) =>
-              prev.map((i) =>
-                i.id === id
-                  ? { ...i, quantity: Math.max(1, i.quantity + d) }
-                  : i,
-              ),
-            )
-          }
-          removeFromCart={(id) =>
-            setCart((prev) => prev.filter((i) => i.id !== id))
-          }
-          isLoggedIn={isLoggedIn}
-        />
+        {!isAdminPath && (
+          <>
+            <CartSidebar
+              isOpen={isCartOpen}
+              onClose={() => setIsCartOpen(false)}
+              cart={cart}
+              updateQuantity={(id, d) =>
+                setCart((prev) =>
+                  prev.map((i) =>
+                    i.id === id
+                      ? { ...i, quantity: Math.max(1, i.quantity + d) }
+                      : i,
+                  ),
+                )
+              }
+              removeFromCart={(id) =>
+                setCart((prev) => prev.filter((i) => i.id !== id))
+              }
+              isLoggedIn={isLoggedIn}
+            />
 
-        <nav className="border-b border-gray-50 px-12 py-8 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-xl z-50">
-          <Link
-            to="/"
-            className="text-3xl font-black italic tracking-tighter hover:scale-105 transition-transform duration-300"
-          >
-            CK STORE.
-          </Link>
-          <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
-            <Link to="/" className="hover:text-blue-600 transition-colors">
-              Home
-            </Link>
-            {isLoggedIn && userRole === "ADMIN" && (
-              <Link to="/admin" className="text-red-500 hover:text-red-700">
-                Admin
-              </Link>
-            )}
-            {isLoggedIn ? (
-              <button
-                onClick={() => handleLogout(true)}
-                className="hover:text-red-400 transition-colors"
-              >
-                Logout
-              </button>
-            ) : (
+            <nav className="border-b border-gray-50 px-12 py-8 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-xl z-50">
               <Link
-                to="/login"
-                className="hover:text-blue-600 transition-colors"
+                to="/"
+                className="text-3xl font-black italic tracking-tighter hover:scale-105 transition-transform duration-300"
               >
-                Login
+                CK STORE.
               </Link>
-            )}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="bg-black text-white px-8 py-3 rounded-full hover:bg-gray-800 transition-all active:scale-90 shadow-xl shadow-black/10 flex items-center gap-3"
-            >
-              CART <span className="bg-white/20 w-px h-3" />{" "}
-              <span>{cart.reduce((a, b) => a + b.quantity, 0)}</span>
-            </button>
-          </div>
-        </nav>
+              <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
+                <Link to="/" className="hover:text-blue-600 transition-colors">
+                  Home
+                </Link>
+                {isLoggedIn && userRole === "ADMIN" && (
+                  <Link to="/admin" className="text-red-500 hover:text-red-700">
+                    Admin
+                  </Link>
+                )}
+                {isLoggedIn ? (
+                  <button
+                    onClick={() => handleLogout(true)}
+                    className="hover:text-red-400 transition-colors"
+                  >
+                    Logout
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="hover:text-blue-600 transition-colors"
+                  >
+                    Login
+                  </Link>
+                )}
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className="bg-black text-white px-8 py-3 rounded-full hover:bg-gray-800 transition-all active:scale-90 shadow-xl shadow-black/10 flex items-center gap-3"
+                >
+                  CART <span className="bg-white/20 w-px h-3" />{" "}
+                  <span>{cart.reduce((a, b) => a + b.quantity, 0)}</span>
+                </button>
+              </div>
+            </nav>
+          </>
+        )}
 
         <Routes>
           <Route
