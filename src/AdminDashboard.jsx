@@ -6,6 +6,8 @@ import {
   Users,
   LogOut,
   ChevronRight,
+  Search,
+  Bell,
 } from "lucide-react";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
@@ -77,10 +79,29 @@ export default function AdminDashboard({ products, refreshData }) {
 
   const [categories, setCategories] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [editingId, setEditingId] = useState(null);
 
-  // --- 分類與數據邏輯 ---
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 格式化時間：14:30:05
+  const timeString = currentTime.toLocaleTimeString([], { hour12: false });
+
+  const filteredProducts = Array.isArray(products)
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (p.category &&
+            p.category.toLowerCase().includes(searchTerm.toLowerCase())),
+      )
+    : [];
+
   const fetchCategories = async () => {
     try {
       const res = await fetch("http://localhost:8080/api/categories");
@@ -271,6 +292,27 @@ export default function AdminDashboard({ products, refreshData }) {
     }
   };
 
+  const handleLogout = () => {
+    if (window.confirm("ARE YOU SURE YOU WANT TO LOGOUT?")) {
+      // 執行清理邏輯
+      performLogout();
+    }
+  };
+
+  const performLogout = () => {
+    // 1. 清除身份驗證
+    localStorage.removeItem("ck_token");
+
+    // 2. 如果你有存用戶資料，一併清除
+    localStorage.removeItem("ck_user");
+
+    // 3. 顯示一個成功的 Toast 或 Alert
+    alert("LOGOUT SUCCESSFUL. SEE YOU SOON, BOSS! 🫡");
+
+    // 4. 跳轉跳轉到登入頁
+    window.location.href = "/login";
+  };
+
   const menuItems = [
     {
       id: "dashboard",
@@ -314,38 +356,85 @@ export default function AdminDashboard({ products, refreshData }) {
           </nav>
         </div>
         <div className="mt-auto p-8 border-t border-gray-50">
-          <button className="flex items-center gap-4 text-red-400 font-bold text-sm w-full px-4 py-2 hover:bg-red-50 rounded-xl transition-all">
-            <LogOut size={20} />
-            Logout
+          <button
+            onClick={handleLogout}
+            className="group flex items-center gap-4 text-gray-400 font-bold text-sm w-full px-4 py-3 hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all duration-300"
+          >
+            <div className="group-hover:rotate-12 transition-transform">
+              <LogOut size={20} />
+            </div>
+            LOGOUT
           </button>
         </div>
       </aside>
 
       {/* 2. Main Content */}
       <div className="flex-1 flex flex-col">
-        <header className="h-24 bg-white/80 backdrop-blur-md border-b border-gray-100 px-10 flex items-center justify-between sticky top-0 z-40">
-          <div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter">
-              {activeTab}
-            </h2>
-            <p className="text-[10px] font-black text-gray-300 uppercase mt-1">
-              CK Management System
-            </p>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <p className="text-xs font-black uppercase tracking-tighter">
-                CK_BOSS
-              </p>
-              <p className="text-[10px] font-bold text-green-500 uppercase">
-                Super Admin
+        <header className="h-28 bg-white/70 backdrop-blur-xl border-b border-gray-100 px-10 flex items-center justify-between sticky top-0 z-50">
+          {/* 左側：標題與時間動態 */}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter text-black">
+                {activeTab}
+              </h2>
+              <span className="bg-black text-white text-[8px] px-2 py-0.5 rounded-full font-bold">
+                V2.0
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                System Live •{" "}
+                {currentTime.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </p>
             </div>
-            <div className="w-12 h-12 bg-gray-100 rounded-2xl overflow-hidden border-2 border-white shadow-sm">
-              <img
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=CK"
-                alt="avatar"
-              />
+          </div>
+
+          {/* 中間：全域搜尋 (可選) */}
+          <div className="hidden lg:flex relative group">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-black transition-colors">
+              <Search size={16} />
+            </div>
+            <input
+              type="text"
+              placeholder="Press / to search anything..."
+              className="w-80 bg-gray-100/50 border-none rounded-2xl py-3 pl-12 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-black/5 transition-all"
+            />
+          </div>
+
+          {/* 右側：通知與個人資料 */}
+          <div className="flex items-center gap-6">
+            {/* 通知鈴鐺 */}
+            <button className="relative w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-black hover:bg-gray-100 transition-all group">
+              <Bell size={20} />
+              <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full group-hover:scale-125 transition-transform" />
+            </button>
+
+            {/* 分隔線 */}
+            <div className="w-[1px] h-10 bg-gray-100" />
+
+            {/* 用戶資訊 */}
+            <div className="flex items-center gap-4 group cursor-pointer">
+              <div className="text-right">
+                <p className="text-xs font-black uppercase tracking-tighter group-hover:text-blue-600 transition-colors">
+                  CK_BOSS
+                </p>
+                <p className="text-[9px] font-bold text-green-500 uppercase tracking-tighter">
+                  Master Controller
+                </p>
+              </div>
+              <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-0.5 shadow-sm group-hover:shadow-md transition-all">
+                <div className="w-full h-full rounded-[14px] overflow-hidden border-2 border-white">
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=CK&backgroundColor=b6e3f4`}
+                    alt="avatar"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -395,6 +484,18 @@ export default function AdminDashboard({ products, refreshData }) {
                     Products List
                   </h2>
                   <div className="flex gap-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-black transition-all w-64"
+                      />
+                      <span className="absolute left-3 top-1 text-gray-400">
+                        🔍
+                      </span>
+                    </div>
                     <button
                       onClick={() => setIsCatModalOpen(true)}
                       className="bg-white text-black border border-gray-200 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-50 active:scale-95 transition-all"
@@ -433,56 +534,77 @@ export default function AdminDashboard({ products, refreshData }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map((p) => (
-                        <tr
-                          key={p.id}
-                          className="bg-gray-50/50 hover:bg-white hover:shadow-xl transition-all rounded-3xl"
-                        >
-                          {/* 第一列：Product */}
-                          <td className="px-6 py-4 rounded-l-[25px]">
-                            <div className="flex items-center gap-4">
-                              <img
-                                src={p.imageUrl}
-                                className="w-12 h-12 object-cover rounded-xl shadow-sm"
-                                alt=""
-                              />
-                              <span className="font-bold text-sm uppercase">
-                                {p.name}
+                      {filteredProducts.length > 0 ? (
+                        // ✅ 情況 A：有搜尋到資料，正常顯示列表
+                        filteredProducts.map((p) => (
+                          <tr
+                            key={p.id}
+                            className="bg-gray-50/50 hover:bg-white hover:shadow-xl transition-all rounded-3xl"
+                          >
+                            {/* 第一列：Product */}
+                            <td className="px-6 py-4 rounded-l-[25px]">
+                              <div className="flex items-center gap-4">
+                                <img
+                                  src={p.imageUrl}
+                                  className="w-12 h-12 object-cover rounded-xl shadow-sm"
+                                  alt=""
+                                />
+                                <span className="font-bold text-sm uppercase">
+                                  {p.name}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* 第二列：Category */}
+                            <td className="px-6 py-4">
+                              <span className="text-[10px] font-black bg-white px-3 py-1.5 rounded-full border border-gray-100 uppercase">
+                                {p.category || "General"}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* 第二列：Category */}
-                          <td className="px-6 py-4">
-                            <span className="text-[10px] font-black bg-white px-3 py-1.5 rounded-full border border-gray-100 uppercase">
-                              {p.category || "General"}
-                            </span>
-                          </td>
+                            {/* 第三列：Price */}
+                            <td className="px-6 py-4 font-black italic text-blue-600">
+                              ${p.price}
+                            </td>
 
-                          {/* 💡 第三列：Price (你之前漏掉這段了！) */}
-                          <td className="px-6 py-4 font-black italic text-blue-600">
-                            ${p.price}
-                          </td>
-
-                          {/* 第四列：Actions */}
-                          <td className="px-6 py-4 text-right rounded-r-[25px]">
-                            <div className="flex justify-end gap-2">
+                            {/* 第四列：Actions */}
+                            <td className="px-6 py-4 text-right rounded-r-[25px]">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => openEditModal(p)}
+                                  className="p-2 text-gray-300 hover:text-black transition-all"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteProduct(p.id)}
+                                  className="p-2 text-gray-300 hover:text-red-500 transition-all"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        // ❌ 情況 B：查無資料，顯示提示訊息
+                        <tr>
+                          <td colSpan="4" className="text-center py-20">
+                            <div className="flex flex-col items-center justify-center text-gray-300">
+                              <span className="text-5xl mb-4">🔍</span>
+                              <p className="text-sm font-black uppercase italic tracking-widest">
+                                No products found matching "{searchTerm}"
+                              </p>
                               <button
-                                onClick={() => openEditModal(p)}
-                                className="p-2 text-gray-300 hover:text-black transition-all"
+                                onClick={() => setSearchTerm("")}
+                                className="mt-4 text-[10px] text-blue-500 font-bold hover:underline"
                               >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(p.id)}
-                                className="p-2 text-gray-300 hover:text-red-500 transition-all"
-                              >
-                                🗑️
+                                Clear Search
                               </button>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -604,6 +726,11 @@ export default function AdminDashboard({ products, refreshData }) {
                   }
                 />
               </div>
+              {!newProduct.imageUrl && (
+                <p className="text-[11px] text-red-400 font-bold mt-2 text-center italic">
+                  * Please upload and save a product image first
+                </p>
+              )}
 
               {isCropping ? (
                 <div className="relative w-full h-[300px] min-h-[300px] bg-gray-900 rounded-2xl overflow-hidden mb-4 shadow-inner border border-gray-700">
@@ -712,7 +839,12 @@ export default function AdminDashboard({ products, refreshData }) {
                 </button>
                 <button
                   type="submit"
-                  className="flex-[2] bg-black text-white py-3 rounded-full font-black shadow-xl active:scale-95 transition-all uppercase text-[10px]"
+                  disabled={!newProduct.imageUrl}
+                  className={`flex-[2] py-3 rounded-full font-black shadow-xl transition-all uppercase text-[10px] ${
+                    newProduct.imageUrl
+                      ? "bg-black text-white active:scale-95 cursor-pointer"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
                 >
                   {editingId ? "Update" : "Upload"}
                 </button>
