@@ -10,6 +10,8 @@ import {
 } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard";
 import AuthPage from "./AuthPage";
+import CheckoutPage from "./CheckoutPage";
+import ProfileSidebar from "./ProfileSidebar";
 
 const API_BASE_URL = "http://localhost:8080";
 
@@ -54,15 +56,21 @@ function ProductDetail({ addToCart }) {
           </p>
         </div>
         <button
-          disabled={product.quantity <= 0}
+          disabled={product.stockQuantity <= 0}
           onClick={() => addToCart(product)}
-          className={
-            product.quantity <= 0
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-black"
-          }
+          className={`w-full py-6 rounded-full font-black text-xl transition-all active:scale-95 shadow-2xl shadow-black/20 uppercase tracking-tighter ${
+            product.stockQuantity <= 0
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+              : "bg-black text-white hover:bg-gray-800"
+          }`}
         >
-          {product.quantity <= 0 ? "OUT OF STOCK" : "ADD TO CART"}
+          {product.stockQuantity <= 0 ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="opacity-50">🚫</span> SOLD OUT
+            </span>
+          ) : (
+            "ADD TO CART"
+          )}
         </button>
         <Link
           to="/"
@@ -190,13 +198,8 @@ function CartSidebar({
     0,
   );
   const processCheckout = () => {
-    if (!isLoggedIn) {
-      onClose();
-      navigate("/login");
-    } else {
-      onCheckout();
-      onClose();
-    }
+    onClose();
+    navigate("/checkout");
   };
   return (
     <>
@@ -289,13 +292,22 @@ function CartSidebar({
             <button
               onClick={processCheckout}
               disabled={isPending || cart.length === 0}
-              className={`... ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`w-full py-6 rounded-full font-black text-xl tracking-widest transition-all active:scale-95 shadow-2xl ${
+                isPending || cart.length === 0
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed" // 💡 禁用狀態：灰色
+                  : "bg-black text-white hover:bg-gray-800 shadow-black/20" // 💡 正常狀態：黑底白字
+              }`}
             >
-              {isPending
-                ? "PROCESSING..."
-                : isLoggedIn
-                  ? "PROCEED TO CHECKOUT"
-                  : "LOGIN TO CHECKOUT"}
+              {isPending ? (
+                <span className="flex items-center justify-center gap-3">
+                  <span className="animate-spin text-2xl">⏳</span>{" "}
+                  PROCESSING...
+                </span>
+              ) : isLoggedIn ? (
+                "PROCEED TO CHECKOUT"
+              ) : (
+                "LOGIN TO CHECKOUT"
+              )}
             </button>
           </div>
         </div>
@@ -306,12 +318,20 @@ function CartSidebar({
 
 function AppContent() {
   const navigate = useNavigate();
+  const [user, setUser] = useState({
+    username: localStorage.getItem("ck_username") || "",
+    email: localStorage.getItem("ck_email") || "",
+    profilePic: "",
+    address: "",
+    phoneNo: "",
+  });
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [cart, setCart] = useState(
     JSON.parse(localStorage.getItem("ck_cart")) || [],
   );
@@ -325,12 +345,12 @@ function AppContent() {
   const handleLogout = (showMsg = true) => {
     localStorage.removeItem("ck_token");
     localStorage.removeItem("ck_role");
-    localStorage.removeItem("ck_username"); // 順便清理用戶名
+    localStorage.removeItem("ck_username");
     localStorage.removeItem("ck_email");
     setIsLoggedIn(false);
     setUserRole("");
     if (showMsg) alert("Logout Success!");
-    navigate("/login"); // ✅ 使用 navigate 跳轉
+    navigate("/login");
   };
 
   const fetchData = () => {
@@ -346,6 +366,16 @@ function AppContent() {
         .then((data) => setOrders(data));
     }
   };
+
+  useEffect(() => {
+    const userId = localStorage.getItem("ck_user_id");
+    if (userId && isLoggedIn) {
+      fetch(`${API_BASE_URL}/api/users/${userId}`)
+        .then((res) => res.json())
+        .then((data) => setUser(data))
+        .catch((err) => console.error("Fetch user error:", err));
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     fetchData();
@@ -367,13 +397,16 @@ function AppContent() {
     setIsCartOpen(true);
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (formData) => {
     if (cart.length === 0) return;
     setIsPending(true);
 
     const orderData = {
-      customerName: localStorage.getItem("ck_username") || "Guest",
-      customerEmail: localStorage.getItem("ck_email") || "guest@example.com",
+      // 使用表單填寫的資訊
+      customerName: formData.name,
+      customerEmail: formData.email,
+      shippingAddress: formData.address, // 💡 新增這行
+      paymentMethod: formData.paymentMethod, // 💡 新增這行
       totalAmount: cart.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0,
@@ -420,6 +453,7 @@ function AppContent() {
           </Link>
           <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
             <Link to="/">Home</Link>
+            <button onClick={() => setIsProfileOpen(true)}>Profile</button>
             {isLoggedIn && userRole.toUpperCase() === "ADMIN" && (
               <Link to="/admin" className="text-red-500">
                 Admin
@@ -427,11 +461,17 @@ function AppContent() {
             )}
 
             {isLoggedIn ? (
-              <button onClick={() => handleLogout(true)} className="...">
+              <button
+                onClick={() => handleLogout(true)}
+                className="hover:text-red-500 transition-colors"
+              >
                 Logout
               </button>
             ) : (
-              <Link to="/login" className="...">
+              <Link
+                to="/login"
+                className="hover:text-blue-600 transition-colors"
+              >
                 Login
               </Link>
             )}
@@ -511,7 +551,23 @@ function AppContent() {
             <AuthPage setIsLoggedIn={setIsLoggedIn} setUserRole={setUserRole} />
           }
         />
+        <Route
+          path="/checkout"
+          element={
+            <CheckoutPage
+              cart={cart}
+              isPending={isPending}
+              onCheckout={handleCheckout}
+            />
+          }
+        />
       </Routes>
+      <ProfileSidebar
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        setUser={setUser}
+      />
     </div>
   );
 }

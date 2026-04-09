@@ -117,6 +117,8 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
 
           localStorage.setItem("ck_token", data.token);
           localStorage.setItem("ck_role", data.role);
+          localStorage.setItem("ck_user_id", data.id);
+          localStorage.setItem("ck_email", data.email);
 
           setIsExiting(true);
 
