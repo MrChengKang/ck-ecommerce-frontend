@@ -12,7 +12,6 @@ import {
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
 
-// --- 小組件 ---
 function StatCard({ title, value, icon, color, grow }) {
   return (
     <div className="bg-white p-8 rounded-[35px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -52,7 +51,7 @@ function ActivityItem({ user, action, time }) {
   );
 }
 
-export default function AdminDashboard({ products, refreshData }) {
+export default function AdminDashboard({ products, orders = [], refreshData }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -117,6 +116,18 @@ export default function AdminDashboard({ products, refreshData }) {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch("http://localhost:8080/api/orders");
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data); // 💡 把數據存進狀態
+      }
+    } catch (err) {
+      console.error("Fetch orders failed", err);
+    }
+  };
 
   const handleAddCategory = async () => {
     if (!newCategoryName) return;
@@ -300,16 +311,12 @@ export default function AdminDashboard({ products, refreshData }) {
   };
 
   const performLogout = () => {
-    // 1. 清除身份驗證
     localStorage.removeItem("ck_token");
 
-    // 2. 如果你有存用戶資料，一併清除
     localStorage.removeItem("ck_user");
 
-    // 3. 顯示一個成功的 Toast 或 Alert
     alert("LOGOUT SUCCESSFUL. SEE YOU SOON, BOSS! 🫡");
 
-    // 4. 跳轉跳轉到登入頁
     window.location.href = "/login";
   };
 
@@ -323,6 +330,23 @@ export default function AdminDashboard({ products, refreshData }) {
     { id: "orders", label: "Orders", icon: <ShoppingCart size={20} /> },
     { id: "customers", label: "Customers", icon: <Users size={20} /> },
   ];
+
+  const StatusBadge = ({ status }) => {
+    const styles = {
+      Pending: "bg-orange-50 text-orange-600",
+      Paid: "bg-blue-50 text-blue-600",
+      Shipped: "bg-purple-50 text-purple-600",
+      Delivered: "bg-green-50 text-green-600",
+      Cancelled: "bg-red-50 text-red-600",
+    };
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${styles[status]}`}
+      >
+        {status}
+      </span>
+    );
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FB] text-gray-800 font-sans">
@@ -605,6 +629,66 @@ export default function AdminDashboard({ products, refreshData }) {
                           </td>
                         </tr>
                       )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {/* 在 AdminDashboard.jsx 的 Main 區域中找到對應位置 */}
+            {activeTab === "orders" && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter text-black">
+                      Orders Tracking
+                    </h2>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                      Monitor your sales performance
+                    </p>
+                  </div>
+                  {/* 這裡也可以放一個專門搜訂單編號的搜尋框 */}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-separate border-spacing-y-3">
+                    <thead>
+                      <tr className="text-gray-400 text-[10px] font-black uppercase px-4">
+                        <th className="px-6 py-4">ID / Date</th>
+                        <th className="px-6 py-4">Customer</th>
+                        <th className="px-6 py-4">Total Amount</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* 這裡先用 mock 數據測試，等 API 通了再換成 orders.map */}
+                      <tr className="bg-gray-50/50 hover:bg-white hover:shadow-xl transition-all rounded-3xl">
+                        <td className="px-6 py-4 rounded-l-[25px]">
+                          <p className="font-black text-sm">#CK-8888</p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase">
+                            2026-04-09
+                          </p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-xs font-bold">CK_CUSTOMER</p>
+                          <p className="text-[9px] text-gray-300">
+                            ck@example.com
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 font-black italic text-blue-600">
+                          $199.00
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">
+                            Pending
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right rounded-r-[25px]">
+                          <button className="text-[10px] font-black bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-all">
+                            DETAILS
+                          </button>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>

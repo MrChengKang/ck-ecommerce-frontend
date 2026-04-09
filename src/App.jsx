@@ -6,6 +6,7 @@ import {
   Link,
   useParams,
   useNavigate,
+  Navigate,
 } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard";
 import AuthPage from "./AuthPage";
@@ -53,10 +54,15 @@ function ProductDetail({ addToCart }) {
           </p>
         </div>
         <button
+          disabled={product.quantity <= 0}
           onClick={() => addToCart(product)}
-          className="w-full bg-black text-white py-6 rounded-full font-black text-xl hover:bg-gray-800 transition-all active:scale-95 shadow-2xl shadow-black/20"
+          className={
+            product.quantity <= 0
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-black"
+          }
         >
-          ADD TO CART
+          {product.quantity <= 0 ? "OUT OF STOCK" : "ADD TO CART"}
         </button>
         <Link
           to="/"
@@ -69,7 +75,30 @@ function ProductDetail({ addToCart }) {
   );
 }
 
-// --- 2. 首頁 ---
+function CheckoutSuccess() {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center p-10 animate-in zoom-in duration-500">
+      <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-5xl mb-8 shadow-lg shadow-green-100">
+        ✓
+      </div>
+      <h1 className="text-5xl font-black italic tracking-tighter mb-4">
+        THANK YOU!
+      </h1>
+      <p className="text-gray-400 font-medium max-w-md mb-10">
+        Your order has been placed successfully. We'll send you a confirmation
+        email shortly.
+      </p>
+      <button
+        onClick={() => navigate("/")}
+        className="bg-black text-white px-10 py-4 rounded-full font-black uppercase tracking-widest hover:scale-105 transition-all"
+      >
+        Back to Shopping
+      </button>
+    </div>
+  );
+}
+
 function Home({
   products,
   filteredProducts,
@@ -145,7 +174,6 @@ function Home({
   );
 }
 
-// --- 3. 側邊欄 ---
 function CartSidebar({
   isOpen,
   onClose,
@@ -153,17 +181,22 @@ function CartSidebar({
   updateQuantity,
   removeFromCart,
   isLoggedIn,
+  onCheckout,
+  isPending,
 }) {
   const navigate = useNavigate();
   const totalPrice = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
-  const handleCheckout = () => {
+  const processCheckout = () => {
     if (!isLoggedIn) {
       onClose();
       navigate("/login");
-    } else alert("Redirecting to Stripe payment...");
+    } else {
+      onCheckout();
+      onClose();
+    }
   };
   return (
     <>
@@ -188,11 +221,17 @@ function CartSidebar({
           </div>
           <div className="flex-1 overflow-y-auto space-y-6 custom-scrollbar">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center opacity-20">
-                <span className="text-8xl mb-4">📦</span>
-                <p className="font-black uppercase text-[10px] tracking-widest">
+              <div className="h-full flex flex-col items-center justify-center space-y-6">
+                <span className="text-8xl grayscale opacity-30">🛒</span>
+                <p className="font-black text-gray-300 uppercase tracking-widest">
                   Your cart is empty
                 </p>
+                <button
+                  onClick={onClose}
+                  className="text-xs font-black underline underline-offset-8 hover:text-blue-600 transition-colors"
+                >
+                  START EXPLORING →
+                </button>
               </div>
             ) : (
               cart.map((item) => (
@@ -248,10 +287,15 @@ function CartSidebar({
               <span>${totalPrice.toFixed(2)}</span>
             </div>
             <button
-              onClick={handleCheckout}
-              className="w-full bg-black text-white py-6 rounded-full font-black uppercase tracking-[0.2em] hover:bg-gray-800 transition-all active:scale-95 shadow-2xl shadow-black/10 text-sm"
+              onClick={processCheckout}
+              disabled={isPending || cart.length === 0}
+              className={`... ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {isLoggedIn ? "PROCEED TO CHECKOUT" : "LOGIN TO CHECKOUT"}
+              {isPending
+                ? "PROCESSING..."
+                : isLoggedIn
+                  ? "PROCEED TO CHECKOUT"
+                  : "LOGIN TO CHECKOUT"}
             </button>
           </div>
         </div>
@@ -260,12 +304,14 @@ function CartSidebar({
   );
 }
 
-// --- 4. 主程式 App ---
-export default function App() {
+function AppContent() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isPending, setIsPending] = useState(false);
   const [cart, setCart] = useState(
     JSON.parse(localStorage.getItem("ck_cart")) || [],
   );
@@ -279,24 +325,32 @@ export default function App() {
   const handleLogout = (showMsg = true) => {
     localStorage.removeItem("ck_token");
     localStorage.removeItem("ck_role");
+    localStorage.removeItem("ck_username"); // 順便清理用戶名
+    localStorage.removeItem("ck_email");
     setIsLoggedIn(false);
     setUserRole("");
     if (showMsg) alert("Logout Success!");
-    window.location.href = "/login";
+    navigate("/login"); // ✅ 使用 navigate 跳轉
   };
 
   const fetchData = () => {
     fetch(`${API_BASE_URL}/api/products`)
       .then((res) => res.json())
-      .then((data) => setProducts(data))
-      .catch((err) => console.error(err));
+      .then((data) => setProducts(data));
   };
 
-  const isAdminPath = window.location.pathname.startsWith("/admin");
+  const fetchOrders = () => {
+    if (userRole.toUpperCase() === "ADMIN") {
+      fetch(`${API_BASE_URL}/api/orders`)
+        .then((res) => res.json())
+        .then((data) => setOrders(data));
+    }
+  };
 
   useEffect(() => {
     fetchData();
-  }, []);
+    fetchOrders();
+  }, [userRole]);
   useEffect(() => {
     localStorage.setItem("ck_cart", JSON.stringify(cart));
   }, [cart]);
@@ -310,117 +364,162 @@ export default function App() {
         );
       return [...prev, { ...product, quantity: 1 }];
     });
-    setIsCartOpen(true); // 自動打開購物車
+    setIsCartOpen(true);
   };
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (selectedCategory === "All" || p.category === selectedCategory),
-  );
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setIsPending(true);
+
+    const orderData = {
+      customerName: localStorage.getItem("ck_username") || "Guest",
+      customerEmail: localStorage.getItem("ck_email") || "guest@example.com",
+      totalAmount: cart.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0,
+      ),
+      items: cart.map((item) => ({
+        productName: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: item.imageUrl,
+        productId: item.id,
+      })),
+    };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+
+      if (res.ok) {
+        setCart([]);
+        fetchOrders();
+        navigate("/success");
+      } else {
+        const msg = await res.text();
+        alert("Checkout Failed: " + msg);
+      }
+    } catch (err) {
+      alert("Server Error");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const isAdminPath = window.location.pathname.startsWith("/admin");
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-white text-gray-900 selection:bg-black selection:text-white font-sans antialiased">
-        {!isAdminPath && (
-          <>
-            <CartSidebar
-              isOpen={isCartOpen}
-              onClose={() => setIsCartOpen(false)}
-              cart={cart}
-              updateQuantity={(id, d) =>
-                setCart((prev) =>
-                  prev.map((i) =>
-                    i.id === id
-                      ? { ...i, quantity: Math.max(1, i.quantity + d) }
-                      : i,
-                  ),
-                )
-              }
-              removeFromCart={(id) =>
-                setCart((prev) => prev.filter((i) => i.id !== id))
-              }
-              isLoggedIn={isLoggedIn}
-            />
-
-            <nav className="border-b border-gray-50 px-12 py-8 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-xl z-50">
-              <Link
-                to="/"
-                className="text-3xl font-black italic tracking-tighter hover:scale-105 transition-transform duration-300"
-              >
-                CK STORE.
+    <div className="min-h-screen bg-white text-gray-900 font-sans antialiased">
+      {!isAdminPath && (
+        <nav className="border-b border-gray-50 px-12 py-8 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-xl z-50">
+          <Link to="/" className="text-3xl font-black italic tracking-tighter">
+            CK STORE.
+          </Link>
+          <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
+            <Link to="/">Home</Link>
+            {isLoggedIn && userRole.toUpperCase() === "ADMIN" && (
+              <Link to="/admin" className="text-red-500">
+                Admin
               </Link>
-              <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
-                <Link to="/" className="hover:text-blue-600 transition-colors">
-                  Home
-                </Link>
-                {isLoggedIn && userRole === "ADMIN" && (
-                  <Link to="/admin" className="text-red-500 hover:text-red-700">
-                    Admin
-                  </Link>
-                )}
-                {isLoggedIn ? (
-                  <button
-                    onClick={() => handleLogout(true)}
-                    className="hover:text-red-400 transition-colors"
-                  >
-                    Logout
-                  </button>
-                ) : (
-                  <Link
-                    to="/login"
-                    className="hover:text-blue-600 transition-colors"
-                  >
-                    Login
-                  </Link>
-                )}
-                <button
-                  onClick={() => setIsCartOpen(true)}
-                  className="bg-black text-white px-8 py-3 rounded-full hover:bg-gray-800 transition-all active:scale-90 shadow-xl shadow-black/10 flex items-center gap-3"
-                >
-                  CART <span className="bg-white/20 w-px h-3" />{" "}
-                  <span>{cart.reduce((a, b) => a + b.quantity, 0)}</span>
-                </button>
-              </div>
-            </nav>
-          </>
-        )}
+            )}
 
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <Home
+            {isLoggedIn ? (
+              <button onClick={() => handleLogout(true)} className="...">
+                Logout
+              </button>
+            ) : (
+              <Link to="/login" className="...">
+                Login
+              </Link>
+            )}
+            <button
+              key={cart.length}
+              onClick={() => setIsCartOpen(true)}
+              className="bg-black text-white px-8 py-3 rounded-full shadow-xl flex items-center gap-3"
+            >
+              CART <span className="bg-white/20 w-px h-3" />{" "}
+              <span>{cart.reduce((a, b) => a + b.quantity, 0)}</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* 這裡是傳遞給側邊欄的 Props */}
+      <CartSidebar
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cart={cart}
+        isLoggedIn={isLoggedIn}
+        onCheckout={handleCheckout}
+        isPending={isPending}
+        updateQuantity={(id, d) =>
+          setCart((prev) =>
+            prev.map((i) =>
+              i.id === id ? { ...i, quantity: Math.max(1, i.quantity + d) } : i,
+            ),
+          )
+        }
+        removeFromCart={(id) =>
+          setCart((prev) => prev.filter((i) => i.id !== id))
+        }
+      />
+
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Home
+              products={products}
+              filteredProducts={products.filter((p) =>
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()),
+              )}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+            />
+          }
+        />
+        <Route
+          path="/product/:id"
+          element={<ProductDetail addToCart={addToCart} />}
+        />
+        <Route path="/success" element={<CheckoutSuccess />} />
+        <Route
+          path="/admin"
+          element={
+            isLoggedIn && userRole.toUpperCase() === "ADMIN" ? (
+              <AdminDashboard
                 products={products}
-                filteredProducts={filteredProducts}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
+                orders={orders}
+                refreshData={() => {
+                  fetchData();
+                  fetchOrders();
+                }}
               />
-            }
-          />
-          <Route
-            path="/product/:id"
-            element={<ProductDetail addToCart={addToCart} />}
-          />
-          <Route
-            path="/admin"
-            element={
-              <AdminDashboard products={products} refreshData={fetchData} />
-            }
-          />
-          <Route
-            path="/login"
-            element={
-              <AuthPage
-                setIsLoggedIn={setIsLoggedIn}
-                setUserRole={setUserRole}
-              />
-            }
-          />
-        </Routes>
-      </div>
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <AuthPage setIsLoggedIn={setIsLoggedIn} setUserRole={setUserRole} />
+          }
+        />
+      </Routes>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
     </BrowserRouter>
   );
 }
