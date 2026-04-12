@@ -48,7 +48,7 @@ function ProductDetail({ addToCart }) {
           {product.name}
         </h1>
         <p className="text-blue-600 text-3xl font-black mb-8 italic">
-          ${product.price}
+          RM{product.price}
         </p>
         <div className="border-y border-gray-100 py-10 mb-8">
           <p className="text-gray-500 leading-relaxed text-lg font-medium">
@@ -139,10 +139,10 @@ function Home({
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${
+              className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all duration-300 transform active:scale-90 ${
                 selectedCategory === cat
-                  ? "bg-black text-white shadow-xl scale-105"
-                  : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                  ? "bg-black text-white shadow-[0_10px_20px_rgba(0,0,0,0.2)] scale-105"
+                  : "bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-black"
               }`}
             >
               {cat}
@@ -151,32 +151,49 @@ function Home({
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-14">
-        {filteredProducts.map((product) => (
-          <Link
-            to={`/product/${product.id}`}
-            key={product.id}
-            className="group"
-          >
-            <div className="overflow-hidden rounded-[45px] bg-gray-50 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl transition-all duration-700">
-              <img
-                src={product.imageUrl}
-                className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
-                alt={product.name}
-              />
-            </div>
-            <div className="flex justify-between items-start px-4">
-              <div>
-                <h3 className="font-black uppercase text-xs tracking-tight group-hover:text-blue-600 transition-colors">
-                  {product.name}
-                </h3>
-                <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] mt-1">
-                  {product.category}
-                </p>
-              </div>
-              <p className="font-black text-xl italic">${product.price}</p>
-            </div>
-          </Link>
-        ))}
+        {filteredProducts.length > 0 ? (
+          <>
+            {filteredProducts.map((product) => (
+              <Link
+                to={`/product/${product.id}`}
+                key={product.id}
+                className="group"
+              >
+                <div className="overflow-hidden rounded-[45px] bg-gray-50 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl transition-all duration-700">
+                  <img
+                    src={product.imageUrl}
+                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
+                    alt={product.name}
+                  />
+                </div>
+                <div className="flex justify-between items-start px-4">
+                  <div>
+                    <h3 className="font-black uppercase text-xs tracking-tight group-hover:text-blue-600 transition-colors">
+                      {product.name}
+                    </h3>
+                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] mt-1">
+                      {product.category}
+                    </p>
+                  </div>
+                  <p className="font-black text-xl italic">RM{product.price}</p>
+                </div>
+              </Link>
+            ))}
+          </>
+        ) : (
+          <div className="col-span-full py-20 text-center space-y-4 animate-pulse">
+            <span className="text-6xl">📦</span>
+            <p className="text-gray-400 font-black uppercase tracking-widest">
+              No products found in "{selectedCategory}"
+            </p>
+            <button
+              onClick={() => setSelectedCategory("All")}
+              className="text-xs font-black underline underline-offset-4 hover:text-blue-600"
+            >
+              VIEW ALL PRODUCTS
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -252,7 +269,7 @@ function CartSidebar({
                       {item.name}
                     </h3>
                     <p className="text-blue-600 font-black text-base italic">
-                      ${item.price}
+                      RM{item.price}
                     </p>
                     <div className="flex items-center gap-5 mt-4">
                       <div className="flex items-center bg-white rounded-full border border-gray-100 px-3 py-1.5 gap-4 shadow-sm">
@@ -287,7 +304,7 @@ function CartSidebar({
           <div className="border-t border-gray-50 pt-10 mt-6">
             <div className="flex justify-between font-black mb-10 text-3xl tracking-tighter italic">
               <span>TOTAL</span>
-              <span>${totalPrice.toFixed(2)}</span>
+              <span>RM{totalPrice.toFixed(2)}</span>
             </div>
             <button
               onClick={processCheckout}
@@ -402,11 +419,11 @@ function AppContent() {
     setIsPending(true);
 
     const orderData = {
-      // 使用表單填寫的資訊
+      customerId: localStorage.getItem("ck_user_id"),
       customerName: formData.name,
       customerEmail: formData.email,
-      shippingAddress: formData.address, // 💡 新增這行
-      paymentMethod: formData.paymentMethod, // 💡 新增這行
+      shippingAddress: formData.address,
+      paymentMethod: formData.paymentMethod,
       totalAmount: cart.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0,
@@ -513,9 +530,14 @@ function AppContent() {
           element={
             <Home
               products={products}
-              filteredProducts={products.filter((p) =>
-                p.name.toLowerCase().includes(searchTerm.toLowerCase()),
-              )}
+              filteredProducts={products.filter((p) => {
+                const matchesSearch = p.name
+                  .toLowerCase()
+                  .includes(searchTerm.toLowerCase());
+                const matchesCategory =
+                  selectedCategory === "All" || p.category === selectedCategory;
+                return matchesSearch && matchesCategory;
+              })}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               selectedCategory={selectedCategory}
@@ -558,6 +580,7 @@ function AppContent() {
               cart={cart}
               isPending={isPending}
               onCheckout={handleCheckout}
+              user={user}
             />
           }
         />

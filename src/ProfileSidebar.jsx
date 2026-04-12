@@ -47,13 +47,29 @@ function ProfileSidebar({ isOpen, onClose, user, setUser }) {
     }
   };
 
-  // 2. 處理文字資料保存 (這部分保持不變)
   const handleSave = async () => {
     setIsSaving(true);
-    // ... 原有的 PUT 請求邏輯 ...
-    alert("Profile saved!");
-    localStorage.setItem("ck_username", user.username);
-    setIsSaving(false);
+    try {
+      const res = await fetch(`http://localhost:8080/api/users/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(user),
+      });
+
+      if (res.ok) {
+        alert("Profile updated successfully!");
+        // 💡 同步更新本地存儲的名字，導航欄才會跟著變
+        localStorage.setItem("ck_username", user.username);
+      } else {
+        const errorMsg = await res.text();
+        alert("Update failed: " + errorMsg);
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("Server connection error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

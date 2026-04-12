@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
+import CustomerDetailModal from "./components/admin/CustomerDetailModal";
+import OrderDetailModal from "./components/admin/OrderDetailModal";
+import ProductsTab from "./components/admin/ProductsTab";
+import OrdersTab from "./components/admin/OrdersTab";
+import CustomersTab from "./components/admin/CustomersTab";
 
 function StatCard({ title, value, icon, color, grow }) {
   return (
@@ -82,12 +87,71 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
 
   const [editingId, setEditingId] = useState(null);
 
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    totalCustomers: 0,
+  });
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch("http://localhost:8080/api/admin/stats", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error("Fetch stats error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchCustomers = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("ck_token");
+    try {
+      // 💡 注意：這裡的路徑要改成 /api/users，因為你的 Java Controller 是這樣寫的
+      const res = await fetch("http://localhost:8080/api/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setCustomers(data);
+      }
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+    } finally {
+      setLoading(false); // 💡 不管成功還是失敗，都要結束 Loading 狀態
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "customers") {
+      fetchCustomers();
+    }
+  }, [activeTab]);
 
   // 格式化時間：14:30:05
   const timeString = currentTime.toLocaleTimeString([], { hour12: false });
@@ -303,9 +367,59 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     }
   };
 
+  const handleUpdateStatus = async (orderId, newStatus) => {
+    const token = localStorage.getItem("ck_token");
+    try {
+      const res = await fetch(
+        `http://localhost:8080/api/orders/${orderId}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+
+      if (res.ok) {
+        if (refreshData) refreshData();
+      }
+    } catch (err) {
+      console.error("Update status failed:", err);
+    }
+  };
+
+  const handleDeleteOrder = async (id) => {
+    // 1. 彈出確認視窗，避免手滑
+    if (!window.confirm("ARE YOU SURE YOU WANT TO DELETE THIS ORDER? 🚨"))
+      return;
+
+    const token = localStorage.getItem("ck_token");
+    try {
+      const res = await fetch(`http://localhost:8080/api/orders/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        alert("🗑️ ORDER DELETED SUCCESSFULLY!");
+        // 2. 成功後刷新數據（這會呼叫你傳進來的 refreshData props）
+        if (refreshData) refreshData();
+      } else {
+        const errorMsg = await res.text();
+        alert("DELETE FAILED: " + errorMsg);
+      }
+    } catch (err) {
+      console.error("Delete order error:", err);
+      alert("SERVER CONNECTION ERROR");
+    }
+  };
+
   const handleLogout = () => {
     if (window.confirm("ARE YOU SURE YOU WANT TO LOGOUT?")) {
-      // 執行清理邏輯
       performLogout();
     }
   };
@@ -331,22 +445,24 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     { id: "customers", label: "Customers", icon: <Users size={20} /> },
   ];
 
-  const StatusBadge = ({ status }) => {
+  const getStatusStyles = (status) => {
     const styles = {
-      Pending: "bg-orange-50 text-orange-600",
-      Paid: "bg-blue-50 text-blue-600",
-      Shipped: "bg-purple-50 text-purple-600",
-      Delivered: "bg-green-50 text-green-600",
-      Cancelled: "bg-red-50 text-red-600",
+      PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+      PAID: "bg-blue-100 text-blue-700 border-blue-200",
+      SHIPPED: "bg-purple-100 text-purple-700 border-purple-200",
+      DELIVERED: "bg-green-100 text-green-700 border-green-200",
+      CANCELLED: "bg-red-100 text-red-700 border-red-200",
     };
-    return (
-      <span
-        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${styles[status]}`}
-      >
-        {status}
-      </span>
-    );
+    return styles[status] || "bg-gray-100 text-gray-500 border-gray-200";
   };
+
+  const StatusBadge = ({ status }) => (
+    <span
+      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyles(status)}`}
+    >
+      {status || "UNKNOWN"}
+    </span>
+  );
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FB] text-gray-800 font-sans">
@@ -466,239 +582,89 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
         <main className="p-10">
           <div className="bg-white rounded-[40px] border border-gray-100 p-10 min-h-[600px] shadow-sm animate-in fade-in duration-700">
             {activeTab === "dashboard" && (
-              <div className="space-y-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <StatCard
-                    title="Total Revenue"
-                    value="$12,840"
-                    icon="💰"
-                    color="bg-blue-50 text-blue-600"
-                    grow="+12%"
-                  />
-                  <StatCard
-                    title="Total Orders"
-                    value="156"
-                    icon="📦"
-                    color="bg-orange-50 text-orange-600"
-                    grow="+5%"
-                  />
-                  <StatCard
-                    title="Products"
-                    value={products.length}
-                    icon="👕"
-                    color="bg-purple-50 text-purple-600"
-                    grow="Stable"
-                  />
-                  <StatCard
-                    title="Customers"
-                    value="89"
-                    icon="👥"
-                    color="bg-green-50 text-green-600"
-                    grow="+18%"
-                  />
-                </div>
-                {/* ... 其他 Dashboard 內容 ... */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard
+                  title="Total Revenue"
+                  value={`RM${(stats.totalRevenue || 0).toLocaleString()}`}
+                  icon="💰"
+                  color="bg-blue-50 text-blue-600"
+                  grow="+12%" // 這裡可以之後再做動態計算
+                />
+                <StatCard
+                  title="Total Orders"
+                  value={stats.totalOrders}
+                  icon="📦"
+                  color="bg-orange-50 text-orange-600"
+                  grow="+5%"
+                />
+                <StatCard
+                  title="Products"
+                  value={stats.totalProducts}
+                  icon="👕"
+                  color="bg-purple-50 text-purple-600"
+                  grow="Stable"
+                />
+                <StatCard
+                  title="Customers"
+                  value={stats.totalCustomers}
+                  icon="👥"
+                  color="bg-green-50 text-green-600"
+                  grow="+18%"
+                />
               </div>
             )}
 
             {activeTab === "products" && (
-              <div className="space-y-8 animate-in fade-in duration-500">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-3xl font-black italic uppercase tracking-tighter">
-                    Products List
-                  </h2>
-                  <div className="flex gap-4">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Search products..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-black transition-all w-64"
-                      />
-                      <span className="absolute left-3 top-1 text-gray-400">
-                        🔍
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setIsCatModalOpen(true)}
-                      className="bg-white text-black border border-gray-200 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-50 active:scale-95 transition-all"
-                    >
-                      Manage Categories
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(null);
-                        setNewProduct({
-                          name: "",
-                          price: "",
-                          category: "",
-                          imageUrl: "",
-                          description: "",
-                          stockQuantity: 0,
-                        });
-                        setCroppedImagePreview(null);
-                        setIsModalOpen(true);
-                      }}
-                      className="bg-black text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-800 shadow-lg active:scale-95 transition-all"
-                    >
-                      + Add Product
-                    </button>
-                  </div>
-                </div>
-                {/* 表格 */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-separate border-spacing-y-3">
-                    <thead>
-                      <tr className="text-gray-400 text-[10px] font-black uppercase px-4">
-                        <th className="px-6 py-4">Product</th>
-                        <th className="px-6 py-4">Category</th>
-                        <th className="px-6 py-4">Price</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredProducts.length > 0 ? (
-                        // ✅ 情況 A：有搜尋到資料，正常顯示列表
-                        filteredProducts.map((p) => (
-                          <tr
-                            key={p.id}
-                            className="bg-gray-50/50 hover:bg-white hover:shadow-xl transition-all rounded-3xl"
-                          >
-                            {/* 第一列：Product */}
-                            <td className="px-6 py-4 rounded-l-[25px]">
-                              <div className="flex items-center gap-4">
-                                <img
-                                  src={p.imageUrl}
-                                  className="w-12 h-12 object-cover rounded-xl shadow-sm"
-                                  alt=""
-                                />
-                                <span className="font-bold text-sm uppercase">
-                                  {p.name}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* 第二列：Category */}
-                            <td className="px-6 py-4">
-                              <span className="text-[10px] font-black bg-white px-3 py-1.5 rounded-full border border-gray-100 uppercase">
-                                {p.category || "General"}
-                              </span>
-                            </td>
-
-                            {/* 第三列：Price */}
-                            <td className="px-6 py-4 font-black italic text-blue-600">
-                              ${p.price}
-                            </td>
-
-                            {/* 第四列：Actions */}
-                            <td className="px-6 py-4 text-right rounded-r-[25px]">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => openEditModal(p)}
-                                  className="p-2 text-gray-300 hover:text-black transition-all"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(p.id)}
-                                  className="p-2 text-gray-300 hover:text-red-500 transition-all"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        // ❌ 情況 B：查無資料，顯示提示訊息
-                        <tr>
-                          <td colSpan="4" className="text-center py-20">
-                            <div className="flex flex-col items-center justify-center text-gray-300">
-                              <span className="text-5xl mb-4">🔍</span>
-                              <p className="text-sm font-black uppercase italic tracking-widest">
-                                No products found matching "{searchTerm}"
-                              </p>
-                              <button
-                                onClick={() => setSearchTerm("")}
-                                className="mt-4 text-[10px] text-blue-500 font-bold hover:underline"
-                              >
-                                Clear Search
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <ProductsTab
+                products={products}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                setIsCatModalOpen={setIsCatModalOpen}
+                setEditingId={setEditingId}
+                setNewProduct={setNewProduct}
+                setCroppedImagePreview={setCroppedImagePreview}
+                setIsModalOpen={setIsModalOpen}
+                openEditModal={openEditModal}
+                handleDeleteProduct={handleDeleteProduct}
+              />
             )}
-            {/* 在 AdminDashboard.jsx 的 Main 區域中找到對應位置 */}
-            {activeTab === "orders" && (
-              <div className="space-y-8 animate-in fade-in duration-500">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter text-black">
-                      Orders Tracking
-                    </h2>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                      Monitor your sales performance
-                    </p>
-                  </div>
-                  {/* 這裡也可以放一個專門搜訂單編號的搜尋框 */}
-                </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-separate border-spacing-y-3">
-                    <thead>
-                      <tr className="text-gray-400 text-[10px] font-black uppercase px-4">
-                        <th className="px-6 py-4">ID / Date</th>
-                        <th className="px-6 py-4">Customer</th>
-                        <th className="px-6 py-4">Total Amount</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* 這裡先用 mock 數據測試，等 API 通了再換成 orders.map */}
-                      <tr className="bg-gray-50/50 hover:bg-white hover:shadow-xl transition-all rounded-3xl">
-                        <td className="px-6 py-4 rounded-l-[25px]">
-                          <p className="font-black text-sm">#CK-8888</p>
-                          <p className="text-[9px] text-gray-400 font-bold uppercase">
-                            2026-04-09
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-xs font-bold">CK_CUSTOMER</p>
-                          <p className="text-[9px] text-gray-300">
-                            ck@example.com
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 font-black italic text-blue-600">
-                          $199.00
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">
-                            Pending
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right rounded-r-[25px]">
-                          <button className="text-[10px] font-black bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-all">
-                            DETAILS
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            {activeTab === "orders" && (
+              <OrdersTab
+                orders={orders}
+                handleUpdateStatus={handleUpdateStatus}
+                setSelectedOrder={setSelectedOrder}
+                handleDeleteOrder={handleDeleteOrder}
+                getStatusStyles={getStatusStyles}
+              />
+            )}
+
+            {activeTab === "customers" && (
+              <CustomersTab
+                customers={customers}
+                loading={loading}
+                setSelectedCustomer={setSelectedCustomer}
+              />
             )}
           </div>
         </main>
       </div>
 
       {/* --- 🚨 MODALS (移至最外層) 🚨 --- */}
+
+      {selectedCustomer && (
+        <CustomerDetailModal
+          customer={selectedCustomer}
+          onClose={() => setSelectedCustomer(null)}
+        />
+      )}
+
+      {selectedOrder && (
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
 
       {/* 1. Category Modal */}
       {isCatModalOpen && (
