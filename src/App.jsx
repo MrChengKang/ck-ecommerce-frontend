@@ -360,14 +360,16 @@ function AppContent() {
   );
 
   const handleLogout = (showMsg = true) => {
-    localStorage.removeItem("ck_token");
-    localStorage.removeItem("ck_role");
-    localStorage.removeItem("ck_username");
-    localStorage.removeItem("ck_email");
+    const keysToRemove = ["ck_token", "ck_role", "ck_username", "ck_email"];
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+
     setIsLoggedIn(false);
     setUserRole("");
-    if (showMsg) alert("Logout Success!");
-    navigate("/login");
+
+    if (showMsg) {
+      alert("Logout Success!");
+    }
+    navigate("/login", { replace: true });
   };
 
   const fetchData = () => {
@@ -551,7 +553,7 @@ function AppContent() {
         />
         <Route path="/success" element={<CheckoutSuccess />} />
         <Route
-          path="/admin"
+          path="/admin/*"
           element={
             isLoggedIn && userRole.toUpperCase() === "ADMIN" ? (
               <AdminDashboard
@@ -570,7 +572,14 @@ function AppContent() {
         <Route
           path="/login"
           element={
-            <AuthPage setIsLoggedIn={setIsLoggedIn} setUserRole={setUserRole} />
+            isLoggedIn ? (
+              <Navigate to="/admin/dashboard" replace />
+            ) : (
+              <AuthPage
+                setIsLoggedIn={setIsLoggedIn}
+                setUserRole={setUserRole}
+              />
+            )
           }
         />
         <Route

@@ -9,6 +9,13 @@ import {
   Search,
   Bell,
 } from "lucide-react";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
 import CustomerDetailModal from "./components/admin/CustomerDetailModal";
@@ -16,27 +23,7 @@ import OrderDetailModal from "./components/admin/OrderDetailModal";
 import ProductsTab from "./components/admin/ProductsTab";
 import OrdersTab from "./components/admin/OrdersTab";
 import CustomersTab from "./components/admin/CustomersTab";
-
-function StatCard({ title, value, icon, color, grow }) {
-  return (
-    <div className="bg-white p-8 rounded-[35px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-        <div
-          className={`w-12 h-12 ${color} rounded-2xl flex items-center justify-center text-xl`}
-        >
-          {icon}
-        </div>
-        <span className="text-[10px] font-black text-green-500 bg-green-50 px-2 py-1 rounded-lg">
-          {grow}
-        </span>
-      </div>
-      <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
-        {title}
-      </p>
-      <p className="text-3xl font-black italic tracking-tighter">{value}</p>
-    </div>
-  );
-}
+import StatCard from "./components/admin/StatCard";
 
 function ActivityItem({ user, action, time }) {
   return (
@@ -56,7 +43,13 @@ function ActivityItem({ user, action, time }) {
   );
 }
 
-export default function AdminDashboard({ products, orders = [], refreshData }) {
+export default function AdminDashboard({
+  products,
+  orders: initialOrders = [],
+  refreshData,
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -100,7 +93,10 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     totalOrders: 0,
     totalProducts: 0,
     totalCustomers: 0,
+    revenueTrend: [],
   });
+
+  const [orders, setOrders] = useState(initialOrders);
 
   const fetchStats = async () => {
     try {
@@ -119,8 +115,15 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
   };
 
   useEffect(() => {
+    if (initialOrders && initialOrders.length > 0) {
+      setOrders(initialOrders);
+    }
+  }, [initialOrders]);
+
+  useEffect(() => {
     fetchStats();
-  }, []);
+    fetchOrders();
+  }, [activeTab]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -131,29 +134,31 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     setLoading(true);
     const token = localStorage.getItem("ck_token");
     try {
-      // 💡 注意：這裡的路徑要改成 /api/users，因為你的 Java Controller 是這樣寫的
       const res = await fetch("http://localhost:8080/api/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
         const data = await res.json();
-        setCustomers(data);
+        if (data.content) {
+          setCustomers(data.content);
+        } else {
+          setCustomers(data);
+        }
       }
     } catch (err) {
       console.error("Fetch customers error:", err);
     } finally {
-      setLoading(false); // 💡 不管成功還是失敗，都要結束 Loading 狀態
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === "customers") {
+    if (location.pathname.includes("customers")) {
       fetchCustomers();
     }
-  }, [activeTab]);
+  }, [location.pathname]);
 
-  // 格式化時間：14:30:05
   const timeString = currentTime.toLocaleTimeString([], { hour12: false });
 
   const filteredProducts = Array.isArray(products)
@@ -181,12 +186,28 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     fetchCategories();
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (page = 0, size = 5) => {
+    // 設定預設值
     try {
-      const res = await fetch("http://localhost:8080/api/orders");
+      const token = localStorage.getItem("ck_token");
+      // 💡 關鍵：將 page 和 size 參數放入 URL
+      const res = await fetch(
+        `http://localhost:8080/api/orders?page=${page}&size=${size}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
       if (res.ok) {
         const data = await res.json();
-        setOrders(data); // 💡 把數據存進狀態
+        // 💡 Spring Boot 分頁返回的是 Page 物件，資料在 .content 裡
+        // 這裡需要判斷：如果後端回傳的是 Page 物件就取 .content，否則直接取 data
+        setOrders(data.content || data);
+
+        // 如果你需要同步更新總頁數，這裡也可以透過 props 傳下去
+        // 例如：setTotalPages(data.totalPages);
       }
     } catch (err) {
       console.error("Fetch orders failed", err);
@@ -383,7 +404,13 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
       );
 
       if (res.ok) {
-        if (refreshData) refreshData();
+        if (typeof setOrders === "function") {
+          setOrders((prevOrders) =>
+            prevOrders.map((order) =>
+              order.id === orderId ? { ...order, status: newStatus } : order,
+            ),
+          );
+        }
       }
     } catch (err) {
       console.error("Update status failed:", err);
@@ -438,11 +465,27 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
     {
       id: "dashboard",
       label: "Dashboard",
+      path: "/admin/dashboard",
       icon: <LayoutDashboard size={20} />,
     },
-    { id: "products", label: "Products", icon: <Package size={20} /> },
-    { id: "orders", label: "Orders", icon: <ShoppingCart size={20} /> },
-    { id: "customers", label: "Customers", icon: <Users size={20} /> },
+    {
+      id: "products",
+      label: "Products",
+      path: "/admin/products",
+      icon: <Package size={20} />,
+    },
+    {
+      id: "orders",
+      label: "Orders",
+      path: "/admin/orders",
+      icon: <ShoppingCart size={20} />,
+    },
+    {
+      id: "customers",
+      label: "Customers",
+      path: "/admin/customers",
+      icon: <Users size={20} />,
+    },
   ];
 
   const getStatusStyles = (status) => {
@@ -478,21 +521,32 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
             </h1>
           </div>
           <nav className="space-y-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-300 ${activeTab === item.id ? "bg-black text-white shadow-lg shadow-black/10" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"}`}
-              >
-                <div className="flex items-center gap-4 font-bold text-sm">
-                  {item.icon}
-                  {item.label}
-                </div>
-                {activeTab === item.id && (
-                  <ChevronRight size={14} className="opacity-50" />
-                )}
-              </button>
-            ))}
+            {menuItems.map((item) => {
+              const isActive = location.pathname.includes(item.path);
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.path)}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-300 
+          ${
+            isActive
+              ? "bg-black text-white shadow-lg shadow-black/10"
+              : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+          }`}
+                >
+                  <div className="flex items-center gap-4 font-bold text-sm">
+                    {item.icon}
+                    {item.label}
+                  </div>
+
+                  {/* 💡 右側小箭頭也根據 isActive 顯示 */}
+                  {isActive && (
+                    <ChevronRight size={14} className="opacity-50" />
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
         <div className="mt-auto p-8 border-t border-gray-50">
@@ -581,71 +635,101 @@ export default function AdminDashboard({ products, orders = [], refreshData }) {
 
         <main className="p-10">
           <div className="bg-white rounded-[40px] border border-gray-100 p-10 min-h-[600px] shadow-sm animate-in fade-in duration-700">
-            {activeTab === "dashboard" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                  title="Total Revenue"
-                  value={`RM${(stats.totalRevenue || 0).toLocaleString()}`}
-                  icon="💰"
-                  color="bg-blue-50 text-blue-600"
-                  grow="+12%" // 這裡可以之後再做動態計算
-                />
-                <StatCard
-                  title="Total Orders"
-                  value={stats.totalOrders}
-                  icon="📦"
-                  color="bg-orange-50 text-orange-600"
-                  grow="+5%"
-                />
-                <StatCard
-                  title="Products"
-                  value={stats.totalProducts}
-                  icon="👕"
-                  color="bg-purple-50 text-purple-600"
-                  grow="Stable"
-                />
-                <StatCard
-                  title="Customers"
-                  value={stats.totalCustomers}
-                  icon="👥"
-                  color="bg-green-50 text-green-600"
-                  grow="+18%"
-                />
-              </div>
-            )}
+            <Routes>
+              {/* 1. 默認路徑：自動導向到 dashboard */}
+              <Route path="/" element={<Navigate to="dashboard" replace />} />
 
-            {activeTab === "products" && (
-              <ProductsTab
-                products={products}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                setIsCatModalOpen={setIsCatModalOpen}
-                setEditingId={setEditingId}
-                setNewProduct={setNewProduct}
-                setCroppedImagePreview={setCroppedImagePreview}
-                setIsModalOpen={setIsModalOpen}
-                openEditModal={openEditModal}
-                handleDeleteProduct={handleDeleteProduct}
+              {/* 2. Dashboard 頁面 */}
+              <Route
+                path="dashboard"
+                element={
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+                    {stats && (
+                      <>
+                        <StatCard
+                          title="Total Revenue"
+                          value={`RM${(stats.totalRevenue || 0).toLocaleString()}`}
+                          data={stats.revenueTrend || []}
+                          icon="💰"
+                          color="bg-blue-50 text-blue-600"
+                          grow="+12%"
+                        />
+                        <StatCard
+                          title="Total Orders"
+                          value={stats.totalOrders}
+                          data={stats.orderTrend || []}
+                          icon="📦"
+                          color="bg-orange-50 text-orange-600"
+                          grow="+5%"
+                        />
+                        <StatCard
+                          title="Products"
+                          value={stats.totalProducts}
+                          data={stats.productTrend || []}
+                          icon="👕"
+                          color="bg-purple-50 text-purple-600"
+                          grow="Stable"
+                        />
+                        <StatCard
+                          title="Customers"
+                          value={stats.totalCustomers}
+                          data={stats.customerTrend || []}
+                          icon="👥"
+                          color="bg-green-50 text-green-600"
+                          grow="+18%"
+                        />
+                      </>
+                    )}
+                  </div>
+                }
               />
-            )}
 
-            {activeTab === "orders" && (
-              <OrdersTab
-                orders={orders}
-                handleUpdateStatus={handleUpdateStatus}
-                setSelectedOrder={setSelectedOrder}
-                handleDeleteOrder={handleDeleteOrder}
-                getStatusStyles={getStatusStyles}
+              {/* 3. Products 頁面 */}
+              <Route
+                path="products"
+                element={
+                  <ProductsTab
+                    products={products}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    setIsCatModalOpen={setIsCatModalOpen}
+                    setEditingId={setEditingId}
+                    setNewProduct={setNewProduct}
+                    setCroppedImagePreview={setCroppedImagePreview}
+                    setIsModalOpen={setIsModalOpen}
+                    openEditModal={openEditModal}
+                    handleDeleteProduct={handleDeleteProduct}
+                  />
+                }
               />
-            )}
 
-            {activeTab === "customers" && (
-              <CustomersTab
-                customers={customers}
-                loading={loading}
-                setSelectedCustomer={setSelectedCustomer}
+              {/* 4. Orders 頁面 */}
+              <Route
+                path="orders"
+                element={
+                  <OrdersTab
+                    orders={orders}
+                    setOrders={setOrders}
+                    handleUpdateStatus={handleUpdateStatus}
+                    setSelectedOrder={setSelectedOrder}
+                    handleDeleteOrder={handleDeleteOrder}
+                    getStatusStyles={getStatusStyles}
+                  />
+                }
               />
-            )}
+
+              {/* 5. Customers 頁面 */}
+              <Route
+                path="customers"
+                element={
+                  <CustomersTab
+                    customers={customers}
+                    loading={loading}
+                    setSelectedCustomer={setSelectedCustomer}
+                  />
+                }
+              />
+            </Routes>
           </div>
         </main>
       </div>

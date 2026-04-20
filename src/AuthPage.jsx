@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react"; // 💡 引入 Lucide Icons
+import { Eye, EyeOff } from "lucide-react";
 
 const AuthInput = ({
   type,
@@ -58,14 +58,20 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
 
   const navigate = useNavigate();
 
-  // 1. Remember Me 載入
   useEffect(() => {
     const savedUser = localStorage.getItem("ck_remember_user");
     if (savedUser) {
       setFormData((prev) => ({ ...prev, username: savedUser }));
       setRememberMe(true);
     }
-  }, []);
+
+    const token = localStorage.getItem("ck_token");
+    const role = localStorage.getItem("ck_role");
+
+    if (token && role && role.toUpperCase() === "ADMIN") {
+      navigate("/admin", { replace: true });
+    }
+  }, [navigate]);
 
   // 2. 前端驗證邏輯
   const validateForm = () => {
@@ -125,7 +131,9 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
           setTimeout(() => {
             setIsLoggedIn(true);
             setUserRole(data.role);
-            data.role === "ADMIN" ? navigate("/admin") : navigate("/");
+            data.role === "ADMIN"
+              ? navigate("/admin", { replace: true })
+              : navigate("/", { replace: true });
           }, 500);
         } else {
           alert("Registration Success!");
