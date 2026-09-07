@@ -386,11 +386,53 @@ function AppContent() {
     }
   };
 
+  const handleOpenProfile = async () => {
+    const token = localStorage.getItem("ck_token");
+
+    if (!isLoggedIn || !token) {
+      alert("Please login first!");
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        alert("Session expired. Please login again.");
+        handleLogout(false);
+        return;
+      }
+
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+        setIsProfileOpen(true);
+      } else {
+        alert("Failed to fetch profile details.");
+      }
+    } catch (err) {
+      console.error("Fetch profile error:", err);
+      alert("Server connection error.");
+    }
+  };
+
   useEffect(() => {
-    const userId = localStorage.getItem("ck_user_id");
-    if (userId && isLoggedIn) {
-      fetch(`${API_BASE_URL}/api/users/${userId}`)
-        .then((res) => res.json())
+    const token = localStorage.getItem("ck_token");
+    if (isLoggedIn && token) {
+      fetch(`${API_BASE_URL}/api/users/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((res) => {
+          if (res.ok) return res.json();
+          throw new Error("Unauthorized");
+        })
         .then((data) => setUser(data))
         .catch((err) => console.error("Fetch user error:", err));
     }
@@ -472,7 +514,7 @@ function AppContent() {
           </Link>
           <div className="flex items-center space-x-10 text-[10px] font-black uppercase tracking-[0.25em]">
             <Link to="/">Home</Link>
-            <button onClick={() => setIsProfileOpen(true)}>Profile</button>
+            <button onClick={handleOpenProfile}>Profile</button>
             {isLoggedIn && userRole.toUpperCase() === "ADMIN" && (
               <Link to="/admin" className="text-red-500">
                 Admin
