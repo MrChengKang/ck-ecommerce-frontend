@@ -44,7 +44,7 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
     try {
       // 💡 改打 /me/upload-avatar，且附帶 JWT Authorization Header
       const res = await fetch(
-        "http://localhost:8080/api/users/me/upload-avatar",
+        "https://ck-ecommerce-backend.onrender.com/api/users/me/upload-avatar",
         {
           method: "POST",
           headers: {
@@ -84,14 +84,17 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
     setIsSaving(true);
     try {
       // 💡 改打 /me Endpoint
-      const res = await fetch("http://localhost:8080/api/users/me", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
+      const res = await fetch(
+        "https://ck-ecommerce-backend.onrender.com/api/users/me",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+          body: JSON.stringify(user),
         },
-        body: JSON.stringify(user),
-      });
+      );
 
       if (res.status === 401) {
         handleUnauthorized();

@@ -31,10 +31,9 @@ export default function StatCard({ title, value, data, icon, color, grow }) {
       </div>
 
       {/* 💡 核心修正點：給定高度並加入 debounce */}
-      <div className="h-16 w-full mt-4">
-        {/* 💡 只有當 isReady 為 true 且資料存在時才掛載圖表 */}
+      <div className="h-16 w-full mt-4" style={{ minWidth: 0, minHeight: 0 }}>
         {isReady && data && data.length > 0 && (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="99%" height="100%">
             <AreaChart data={data}>
               <Area
                 type="monotone"

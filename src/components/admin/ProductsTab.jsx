@@ -1,5 +1,23 @@
 import React from "react";
 
+const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+
+const getImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  if (url.includes("localhost:8080")) {
+    return url.replace("http://localhost:8080", API_BASE_URL);
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE_URL}${cleanPath}`;
+};
+
 export default function ProductsTab({
   products,
   searchTerm,
@@ -12,7 +30,6 @@ export default function ProductsTab({
   openEditModal,
   handleDeleteProduct,
 }) {
-  // 💡 在這裡處理過濾邏輯
   const filteredProducts = Array.isArray(products)
     ? products.filter(
         (p) =>
@@ -86,10 +103,11 @@ export default function ProductsTab({
             >
               <div className="col-span-2 flex items-center gap-5">
                 <div className="relative w-16 h-16 shrink-0">
+                  {/* 💡 這裡套用 getImageUrl(p.imageUrl) */}
                   <img
-                    src={p.imageUrl}
+                    src={getImageUrl(p.imageUrl)}
                     className="w-full h-full object-cover rounded-2xl shadow-sm border border-white"
-                    alt=""
+                    alt={p.name}
                   />
                   {p.stockQuantity <= 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[7px] px-1.5 py-0.5 rounded-full font-black">

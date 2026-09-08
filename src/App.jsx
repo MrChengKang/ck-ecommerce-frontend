@@ -13,7 +13,24 @@ import AuthPage from "./AuthPage";
 import CheckoutPage from "./CheckoutPage";
 import ProfileSidebar from "./ProfileSidebar";
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+
+// 💡 處理圖片 URL，自動把舊的 localhost:8080 替換成 Render 域名
+const getImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  if (url.includes("localhost:8080")) {
+    return url.replace("http://localhost:8080", API_BASE_URL);
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE_URL}${cleanPath}`;
+};
 
 // --- 1. 商品詳情頁 ---
 function ProductDetail({ addToCart }) {
@@ -37,8 +54,9 @@ function ProductDetail({ addToCart }) {
   return (
     <div className="max-w-6xl mx-auto p-10 grid grid-cols-1 md:grid-cols-2 gap-12 animate-in fade-in duration-700">
       <div className="overflow-hidden rounded-[40px] shadow-2xl bg-gray-100">
+        {/* 💡 使用 getImageUrl */}
         <img
-          src={product.imageUrl}
+          src={getImageUrl(product.imageUrl)}
           alt={product.name}
           className="w-full h-[550px] object-cover hover:scale-105 transition-transform duration-1000"
         />
@@ -160,8 +178,9 @@ function Home({
                 className="group"
               >
                 <div className="overflow-hidden rounded-[45px] bg-gray-50 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl transition-all duration-700">
+                  {/* 💡 使用 getImageUrl */}
                   <img
-                    src={product.imageUrl}
+                    src={getImageUrl(product.imageUrl)}
                     className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
                     alt={product.name}
                   />
@@ -259,8 +278,9 @@ function CartSidebar({
                   key={item.id}
                   className="flex gap-6 items-center bg-gray-50/50 p-5 rounded-[30px] border border-gray-50"
                 >
+                  {/* 💡 使用 getImageUrl */}
                   <img
-                    src={item.imageUrl}
+                    src={getImageUrl(item.imageUrl)}
                     className="w-24 h-24 object-cover rounded-2xl shadow-lg"
                     alt={item.name}
                   />
@@ -311,8 +331,8 @@ function CartSidebar({
               disabled={isPending || cart.length === 0}
               className={`w-full py-6 rounded-full font-black text-xl tracking-widest transition-all active:scale-95 shadow-2xl ${
                 isPending || cart.length === 0
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed" // 💡 禁用狀態：灰色
-                  : "bg-black text-white hover:bg-gray-800 shadow-black/20" // 💡 正常狀態：黑底白字
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-black text-white hover:bg-gray-800 shadow-black/20"
               }`}
             >
               {isPending ? (
@@ -476,7 +496,7 @@ function AppContent() {
         productName: item.name,
         price: item.price,
         quantity: item.quantity,
-        imageUrl: item.imageUrl,
+        imageUrl: getImageUrl(item.imageUrl), // 💡 確保傳給後端的圖片網址也是修復後的格式
         productId: item.id,
       })),
     };
@@ -548,7 +568,6 @@ function AppContent() {
         </nav>
       )}
 
-      {/* 這裡是傳遞給側邊欄的 Props */}
       <CartSidebar
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}

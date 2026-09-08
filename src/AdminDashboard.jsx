@@ -25,23 +25,15 @@ import OrdersTab from "./components/admin/OrdersTab";
 import CustomersTab from "./components/admin/CustomersTab";
 import StatCard from "./components/admin/StatCard";
 
-function ActivityItem({ user, action, time }) {
-  return (
-    <div className="flex items-center gap-4 border-b border-gray-50 pb-4 last:border-0 last:pb-0">
-      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-black">
-        {user[0]}
-      </div>
-      <div>
-        <p className="text-xs font-bold text-gray-800">
-          {user} <span className="font-normal text-gray-400">{action}</span>
-        </p>
-        <p className="text-[9px] text-gray-300 font-bold uppercase mt-0.5">
-          {time}
-        </p>
-      </div>
-    </div>
-  );
-}
+const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+
+const getImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  const cleanPath = url.replace(/^https?:\/\/[^\/]+/, "");
+  return `${API_BASE_URL}${cleanPath.startsWith("/") ? "" : "/"}${cleanPath}`;
+};
 
 export default function AdminDashboard({
   products,
@@ -66,10 +58,6 @@ export default function AdminDashboard({
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-
-  const onCropComplete = (croppedArea, croppedAreaPixels) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
 
   const [isCropping, setIsCropping] = useState(false);
   const [croppedImagePreview, setCroppedImagePreview] = useState(null);
@@ -98,9 +86,17 @@ export default function AdminDashboard({
 
   const [orders, setOrders] = useState(initialOrders);
 
+  // 1. 根據 URL 動態更新 Header 的 activeTab 標題
+  useEffect(() => {
+    const path = location.pathname.split("/").pop();
+    if (path && path !== "admin") {
+      setActiveTab(path);
+    }
+  }, [location.pathname]);
+
   const fetchStats = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/admin/stats", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
         },
@@ -134,7 +130,7 @@ export default function AdminDashboard({
     setLoading(true);
     const token = localStorage.getItem("ck_token");
     try {
-      const res = await fetch("http://localhost:8080/api/users", {
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -159,20 +155,9 @@ export default function AdminDashboard({
     }
   }, [location.pathname]);
 
-  const timeString = currentTime.toLocaleTimeString([], { hour12: false });
-
-  const filteredProducts = Array.isArray(products)
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (p.category &&
-            p.category.toLowerCase().includes(searchTerm.toLowerCase())),
-      )
-    : [];
-
   const fetchCategories = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/categories");
+      const res = await fetch(`${API_BASE_URL}/api/categories`);
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
@@ -187,12 +172,11 @@ export default function AdminDashboard({
   }, []);
 
   const fetchOrders = async (page = 0, size = 5) => {
-    // 設定預設值
     try {
       const token = localStorage.getItem("ck_token");
-      // 💡 關鍵：將 page 和 size 參數放入 URL
+
       const res = await fetch(
-        `http://localhost:8080/api/orders?page=${page}&size=${size}`,
+        `${API_BASE_URL}/api/orders?page=${page}&size=${size}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -202,12 +186,7 @@ export default function AdminDashboard({
 
       if (res.ok) {
         const data = await res.json();
-        // 💡 Spring Boot 分頁返回的是 Page 物件，資料在 .content 裡
-        // 這裡需要判斷：如果後端回傳的是 Page 物件就取 .content，否則直接取 data
         setOrders(data.content || data);
-
-        // 如果你需要同步更新總頁數，這裡也可以透過 props 傳下去
-        // 例如：setTotalPages(data.totalPages);
       }
     } catch (err) {
       console.error("Fetch orders failed", err);
@@ -217,7 +196,7 @@ export default function AdminDashboard({
   const handleAddCategory = async () => {
     if (!newCategoryName) return;
     try {
-      const res = await fetch("http://localhost:8080/api/categories", {
+      const res = await fetch(`${API_BASE_URL}/api/categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newCategoryName }),
@@ -234,7 +213,7 @@ export default function AdminDashboard({
   const handleDeleteCategory = async (id) => {
     if (!window.confirm("Delete this category?")) return;
     try {
-      await fetch(`http://localhost:8080/api/categories/${id}`, {
+      await fetch(`${API_BASE_URL}/api/categories/${id}`, {
         method: "DELETE",
       });
       fetchCategories();
@@ -258,8 +237,6 @@ export default function AdminDashboard({
   const handleCropSave = async () => {
     try {
       const croppedBlob = await getCroppedImg(image, croppedAreaPixels);
-
-      // 💡 【新增】建立一個臨時的本地 URL 用於前端預覽
       const previewUrl = URL.createObjectURL(croppedBlob);
       setCroppedImagePreview(previewUrl);
 
@@ -269,7 +246,7 @@ export default function AdminDashboard({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://localhost:8080/api/products/upload", {
+      const res = await fetch(`${API_BASE_URL}/api/products/upload`, {
         method: "POST",
         body: formData,
       });
@@ -285,42 +262,10 @@ export default function AdminDashboard({
     setIsModalOpen(false);
     setIsCropping(false);
     setImage(null);
+    setEditingId(null);
     if (croppedImagePreview) {
       URL.revokeObjectURL(croppedImagePreview);
       setCroppedImagePreview(null);
-    }
-  };
-
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem("ck_token");
-    try {
-      const response = await fetch("http://localhost:8080/api/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...newProduct,
-          price: parseFloat(newProduct.price),
-        }),
-      });
-      if (response.ok) {
-        alert("✅ UPLOAD SUCCESS!");
-        setIsModalOpen(false);
-        setNewProduct({
-          name: "",
-          price: "",
-          category: "",
-          imageUrl: "",
-          description: "",
-          stockQuantity: 0,
-        });
-        if (refreshData) refreshData();
-      }
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -334,7 +279,7 @@ export default function AdminDashboard({
       description: product.description,
       stockQuantity: product.stockQuantity,
     });
-    setCroppedImagePreview(product.imageUrl); // 顯示原本的照片
+    setCroppedImagePreview(product.imageUrl);
     setIsModalOpen(true);
   };
 
@@ -343,13 +288,13 @@ export default function AdminDashboard({
       return;
     const token = localStorage.getItem("ck_token");
     try {
-      const res = await fetch(`http://localhost:8080/api/products/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/products/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         alert("🗑️ Delete successful!");
-        refreshData();
+        if (refreshData) refreshData();
       }
     } catch (err) {
       console.error(err);
@@ -361,8 +306,8 @@ export default function AdminDashboard({
     const token = localStorage.getItem("ck_token");
     const method = editingId ? "PUT" : "POST";
     const url = editingId
-      ? `http://localhost:8080/api/products/${editingId}`
-      : "http://localhost:8080/api/products";
+      ? `${API_BASE_URL}/api/products/${editingId}`
+      : `${API_BASE_URL}/api/products`;
 
     try {
       const response = await fetch(url, {
@@ -379,8 +324,7 @@ export default function AdminDashboard({
 
       if (response.ok) {
         alert(editingId ? "✅ Edit successful!" : "✅ Upload successful!");
-        setIsModalOpen(false);
-        setEditingId(null);
+        closeProductModal();
         if (refreshData) refreshData();
       }
     } catch (err) {
@@ -391,17 +335,14 @@ export default function AdminDashboard({
   const handleUpdateStatus = async (orderId, newStatus) => {
     const token = localStorage.getItem("ck_token");
     try {
-      const res = await fetch(
-        `http://localhost:8080/api/orders/${orderId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
+      const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({ status: newStatus }),
+      });
 
       if (res.ok) {
         if (typeof setOrders === "function") {
@@ -418,13 +359,12 @@ export default function AdminDashboard({
   };
 
   const handleDeleteOrder = async (id) => {
-    // 1. 彈出確認視窗，避免手滑
     if (!window.confirm("ARE YOU SURE YOU WANT TO DELETE THIS ORDER? 🚨"))
       return;
 
     const token = localStorage.getItem("ck_token");
     try {
-      const res = await fetch(`http://localhost:8080/api/orders/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -433,7 +373,6 @@ export default function AdminDashboard({
 
       if (res.ok) {
         alert("🗑️ ORDER DELETED SUCCESSFULLY!");
-        // 2. 成功後刷新數據（這會呼叫你傳進來的 refreshData props）
         if (refreshData) refreshData();
       } else {
         const errorMsg = await res.text();
@@ -447,18 +386,11 @@ export default function AdminDashboard({
 
   const handleLogout = () => {
     if (window.confirm("ARE YOU SURE YOU WANT TO LOGOUT?")) {
-      performLogout();
+      localStorage.removeItem("ck_token");
+      localStorage.removeItem("ck_user");
+      alert("LOGOUT SUCCESSFUL. SEE YOU SOON, BOSS! 🫡");
+      window.location.href = "/login";
     }
-  };
-
-  const performLogout = () => {
-    localStorage.removeItem("ck_token");
-
-    localStorage.removeItem("ck_user");
-
-    alert("LOGOUT SUCCESSFUL. SEE YOU SOON, BOSS! 🫡");
-
-    window.location.href = "/login";
   };
 
   const menuItems = [
@@ -499,17 +431,9 @@ export default function AdminDashboard({
     return styles[status] || "bg-gray-100 text-gray-500 border-gray-200";
   };
 
-  const StatusBadge = ({ status }) => (
-    <span
-      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyles(status)}`}
-    >
-      {status || "UNKNOWN"}
-    </span>
-  );
-
   return (
     <div className="flex min-h-screen bg-[#F8F9FB] text-gray-800 font-sans">
-      {/* 1. Sidebar */}
+      {/* Sidebar */}
       <aside className="w-72 bg-white border-r border-gray-100 flex flex-col sticky top-0 h-screen">
         <div className="p-8">
           <div className="flex items-center gap-3 mb-10">
@@ -539,8 +463,6 @@ export default function AdminDashboard({
                     {item.icon}
                     {item.label}
                   </div>
-
-                  {/* 💡 右側小箭頭也根據 isActive 顯示 */}
                   {isActive && (
                     <ChevronRight size={14} className="opacity-50" />
                   )}
@@ -562,10 +484,9 @@ export default function AdminDashboard({
         </div>
       </aside>
 
-      {/* 2. Main Content */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <header className="h-28 bg-white/70 backdrop-blur-xl border-b border-gray-100 px-10 flex items-center justify-between sticky top-0 z-50">
-          {/* 左側：標題與時間動態 */}
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-black uppercase italic tracking-tighter text-black">
@@ -587,7 +508,6 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          {/* 中間：全域搜尋 (可選) */}
           <div className="hidden lg:flex relative group">
             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-black transition-colors">
               <Search size={16} />
@@ -599,18 +519,14 @@ export default function AdminDashboard({
             />
           </div>
 
-          {/* 右側：通知與個人資料 */}
           <div className="flex items-center gap-6">
-            {/* 通知鈴鐺 */}
             <button className="relative w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-black hover:bg-gray-100 transition-all group">
               <Bell size={20} />
               <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full group-hover:scale-125 transition-transform" />
             </button>
 
-            {/* 分隔線 */}
             <div className="w-[1px] h-10 bg-gray-100" />
 
-            {/* 用戶資訊 */}
             <div className="flex items-center gap-4 group cursor-pointer">
               <div className="text-right">
                 <p className="text-xs font-black uppercase tracking-tighter group-hover:text-blue-600 transition-colors">
@@ -623,7 +539,7 @@ export default function AdminDashboard({
               <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-0.5 shadow-sm group-hover:shadow-md transition-all">
                 <div className="w-full h-full rounded-[14px] overflow-hidden border-2 border-white">
                   <img
-                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=CK&backgroundColor=b6e3f4`}
+                    src="https://api.dicebear.com/7.x/avataaars/svg?seed=CK&backgroundColor=b6e3f4"
                     alt="avatar"
                     className="w-full h-full object-cover"
                   />
@@ -636,10 +552,8 @@ export default function AdminDashboard({
         <main className="p-10">
           <div className="bg-white rounded-[40px] border border-gray-100 p-10 min-h-[600px] shadow-sm animate-in fade-in duration-700">
             <Routes>
-              {/* 1. 默認路徑：自動導向到 dashboard */}
               <Route path="/" element={<Navigate to="dashboard" replace />} />
 
-              {/* 2. Dashboard 頁面 */}
               <Route
                 path="dashboard"
                 element={
@@ -684,12 +598,12 @@ export default function AdminDashboard({
                 }
               />
 
-              {/* 3. Products 頁面 */}
               <Route
                 path="products"
                 element={
                   <ProductsTab
                     products={products}
+                    loading={loading}
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
                     setIsCatModalOpen={setIsCatModalOpen}
@@ -703,12 +617,12 @@ export default function AdminDashboard({
                 }
               />
 
-              {/* 4. Orders 頁面 */}
               <Route
                 path="orders"
                 element={
                   <OrdersTab
                     orders={orders}
+                    loading={loading}
                     setOrders={setOrders}
                     handleUpdateStatus={handleUpdateStatus}
                     setSelectedOrder={setSelectedOrder}
@@ -718,7 +632,6 @@ export default function AdminDashboard({
                 }
               />
 
-              {/* 5. Customers 頁面 */}
               <Route
                 path="customers"
                 element={
@@ -734,8 +647,7 @@ export default function AdminDashboard({
         </main>
       </div>
 
-      {/* --- 🚨 MODALS (移至最外層) 🚨 --- */}
-
+      {/* --- MODALS --- */}
       {selectedCustomer && (
         <CustomerDetailModal
           customer={selectedCustomer}
@@ -750,7 +662,7 @@ export default function AdminDashboard({
         />
       )}
 
-      {/* 1. Category Modal */}
+      {/* Category Modal */}
       {isCatModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div
@@ -777,31 +689,32 @@ export default function AdminDashboard({
               </button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="flex justify-between items-center p-3 bg-gray-50 rounded-xl group text-xs font-bold uppercase"
-                >
-                  <span>{cat.name}</span>
-                  <button
-                    onClick={() => handleDeleteCategory(cat.id)}
-                    className="text-red-400 opacity-0 group-hover:opacity-100 transition-all font-black"
+              {Array.isArray(categories) &&
+                categories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    className="flex justify-between items-center p-3 bg-gray-50 rounded-xl group text-xs font-bold uppercase"
                   >
-                    DELETE
-                  </button>
-                </div>
-              ))}
+                    <span>{cat.name}</span>
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="text-red-400 opacity-0 group-hover:opacity-100 transition-all font-black"
+                    >
+                      DELETE
+                    </button>
+                  </div>
+                ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. Product Modal */}
+      {/* Product Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setIsModalOpen(false)}
+            onClick={closeProductModal}
           />
           <div className="relative bg-white w-full max-w-md rounded-[35px] shadow-2xl p-8 animate-in zoom-in-95">
             <h2 className="text-2xl font-black italic uppercase mb-6">
@@ -814,7 +727,7 @@ export default function AdminDashboard({
                   required
                   placeholder="Name"
                   className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm"
-                  value={newProduct.name}
+                  value={newProduct.name || ""}
                   onChange={(e) =>
                     setNewProduct({ ...newProduct, name: e.target.value })
                   }
@@ -824,7 +737,7 @@ export default function AdminDashboard({
                   required
                   placeholder="Price"
                   className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm"
-                  value={newProduct.price}
+                  value={newProduct.price || ""}
                   onChange={(e) =>
                     setNewProduct({ ...newProduct, price: e.target.value })
                   }
@@ -833,7 +746,7 @@ export default function AdminDashboard({
               <div className="grid grid-cols-2 gap-4">
                 <select
                   className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm"
-                  value={newProduct.category}
+                  value={newProduct.category || ""}
                   onChange={(e) =>
                     setNewProduct({ ...newProduct, category: e.target.value })
                   }
@@ -851,7 +764,7 @@ export default function AdminDashboard({
                   required
                   placeholder="Stock"
                   className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm"
-                  value={newProduct.stockQuantity}
+                  value={newProduct.stockQuantity || ""}
                   onChange={(e) =>
                     setNewProduct({
                       ...newProduct,
@@ -887,7 +800,6 @@ export default function AdminDashboard({
                         top: 0,
                         left: 0,
                       },
-                      /* 💡 加上這行強制讓裁切區域顯示 */
                       cropAreaStyle: {
                         border: "2px solid white",
                       },
@@ -903,15 +815,16 @@ export default function AdminDashboard({
                 </div>
               ) : (
                 <div className="relative mb-4">
-                  {croppedImagePreview ? (
-                    // 💡 【新增】如果有了裁切後的預覽圖，就顯示它
+                  {croppedImagePreview || newProduct.imageUrl ? (
                     <div className="relative group overflow-hidden rounded-2xl border-2 border-gray-100 shadow-inner">
                       <img
-                        src={croppedImagePreview}
-                        alt="Cropped preview"
+                        src={
+                          croppedImagePreview ||
+                          getImageUrl(newProduct.imageUrl)
+                        }
+                        alt="Product preview"
                         className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                       />
-                      {/* 懸停時顯示「更換圖片」按鈕 */}
                       <label
                         htmlFor="file-upload"
                         className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
@@ -922,29 +835,16 @@ export default function AdminDashboard({
                       </label>
                     </div>
                   ) : (
-                    // 原本的「Choose Image」藍色/灰色按鈕樣式
-                    <>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={onFileChange}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <label
-                        htmlFor="file-upload"
-                        className={`flex items-center justify-center w-full p-4 rounded-xl border-2 border-dashed cursor-pointer ${newProduct.imageUrl ? "bg-green-50 border-green-200 text-green-600" : "bg-gray-50 border-gray-100 text-gray-400"}`}
-                      >
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                          {newProduct.imageUrl
-                            ? "✓ Image Prepared (Click to Change)"
-                            : "Choose Image"}
-                        </span>
-                      </label>
-                    </>
+                    <label
+                      htmlFor="file-upload"
+                      className="flex items-center justify-center w-full p-4 rounded-xl border-2 border-dashed cursor-pointer bg-gray-50 border-gray-100 text-gray-400"
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Choose Image
+                      </span>
+                    </label>
                   )}
 
-                  {/* 💡 為了能夠點擊圖片更換，需要確保 input file 依然存在 */}
                   <input
                     type="file"
                     accept="image/*"
@@ -958,7 +858,7 @@ export default function AdminDashboard({
               <textarea
                 placeholder="Description"
                 className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm h-20 resize-none"
-                value={newProduct.description}
+                value={newProduct.description || ""}
                 onChange={(e) =>
                   setNewProduct({ ...newProduct, description: e.target.value })
                 }
@@ -966,19 +866,14 @@ export default function AdminDashboard({
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeProductModal}
                   className="flex-1 py-3 font-black text-gray-400 uppercase text-[10px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!newProduct.imageUrl}
-                  className={`flex-[2] py-3 rounded-full font-black shadow-xl transition-all uppercase text-[10px] ${
-                    newProduct.imageUrl
-                      ? "bg-black text-white active:scale-95 cursor-pointer"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
+                  className="w-1/2 py-3 bg-black text-white rounded-2xl font-black text-xs uppercase hover:bg-gray-800 transition-colors shadow-lg shadow-black/10"
                 >
                   {editingId ? "Update" : "Upload"}
                 </button>

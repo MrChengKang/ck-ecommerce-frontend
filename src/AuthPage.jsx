@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
+const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+
 const AuthInput = ({
   type,
   placeholder,
@@ -73,7 +75,6 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
     }
   }, [navigate]);
 
-  // 2. 前端驗證邏輯
   const validateForm = () => {
     if (!isLogin) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,7 +90,6 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
     return null;
   };
 
-  // 3. 處理 登入/註冊
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -104,7 +104,7 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
     const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
 
     try {
-      const response = await fetch(`http://localhost:8080${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -175,7 +175,7 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
         : { email: formData.email, otp, newPassword };
 
     try {
-      const res = await fetch(`http://localhost:8080${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -201,11 +201,9 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
     }
   };
 
-  // 💡 提取共用的按鈕樣式
   const primaryBtnClass =
     "w-full bg-black text-white py-5 rounded-full font-black uppercase flex items-center justify-center gap-2 mt-4 hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-50";
 
-  // --- 5. 渲染 ---
   return (
     <div
       className={`min-h-[80vh] flex items-center justify-center p-6 transition-all duration-500 ${
