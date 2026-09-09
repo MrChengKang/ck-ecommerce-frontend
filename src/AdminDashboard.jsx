@@ -16,6 +16,7 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
+import api from "./api/axios";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
 import CustomerDetailModal from "./components/admin/CustomerDetailModal";
@@ -25,14 +26,26 @@ import OrdersTab from "./components/admin/OrdersTab";
 import CustomersTab from "./components/admin/CustomersTab";
 import StatCard from "./components/admin/StatCard";
 
-const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const getImageUrl = (url) => {
   if (!url) return "";
+
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
 
-  const cleanPath = url.replace(/^https?:\/\/[^\/]+/, "");
-  return `${API_BASE_URL}${cleanPath.startsWith("/") ? "" : "/"}${cleanPath}`;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (
+      url.includes("localhost:8080") &&
+      API_BASE_URL !== "http://localhost:8080"
+    ) {
+      return url.replace("http://localhost:8080", API_BASE_URL);
+    }
+    return url;
+  }
+
+  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE_URL}${cleanPath}`;
 };
 
 export default function AdminDashboard({
@@ -86,7 +99,6 @@ export default function AdminDashboard({
 
   const [orders, setOrders] = useState(initialOrders);
 
-  // 1. 根據 URL 動態更新 Header 的 activeTab 標題
   useEffect(() => {
     const path = location.pathname.split("/").pop();
     if (path && path !== "admin") {
@@ -250,11 +262,16 @@ export default function AdminDashboard({
         method: "POST",
         body: formData,
       });
-      const url = await res.text();
-      setNewProduct({ ...newProduct, imageUrl: url });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNewProduct((prev) => ({ ...prev, imageUrl: data.imageUrl }));
+      } else {
+        alert("Upload failed");
+      }
       setIsCropping(false);
     } catch (e) {
-      console.error(e);
+      console.error("Upload error:", e);
     }
   };
 
@@ -279,7 +296,7 @@ export default function AdminDashboard({
       description: product.description,
       stockQuantity: product.stockQuantity,
     });
-    setCroppedImagePreview(product.imageUrl);
+    setCroppedImagePreview(null);
     setIsModalOpen(true);
   };
 

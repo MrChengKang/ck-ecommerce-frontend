@@ -1,5 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Navigate, Link } from "react-router-dom";
+import api from "./api/axios";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
+const getImageUrl = (url) => {
+  if (!url) return "";
+
+  // 1. 本地預覽的 blob 或 base64 直接回傳
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  // 2. 如果是完整的 http/https 網址（且非舊的 localhost），直接回傳
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    // 解決資料庫內若有殘留 localhost 舊字串的問題
+    if (
+      url.includes("localhost:8080") &&
+      API_BASE_URL !== "http://localhost:8080"
+    ) {
+      return url.replace("http://localhost:8080", API_BASE_URL);
+    }
+    return url;
+  }
+
+  // 3. 相對路徑 (/uploads/xxx.jpg) 自動補上前綴
+  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE_URL}${cleanPath}`;
+};
 
 function CheckoutPage({ cart, isPending, onCheckout, user }) {
   const navigate = useNavigate();
@@ -192,7 +219,7 @@ function CheckoutPage({ cart, isPending, onCheckout, user }) {
             <div key={item.id} className="flex gap-6 items-center">
               <div className="w-20 h-20 bg-white rounded-2xl overflow-hidden shadow-sm">
                 <img
-                  src={item.imageUrl}
+                  src={getImageUrl(item.imageUrl)}
                   className="w-full h-full object-cover"
                   alt={item.name}
                 />

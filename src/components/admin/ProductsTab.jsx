@@ -1,16 +1,21 @@
 import React from "react";
+import api from "../../api/axios";
 
-const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const getImageUrl = (url) => {
   if (!url) return "";
+
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
 
-  if (url.includes("localhost:8080")) {
-    return url.replace("http://localhost:8080", API_BASE_URL);
-  }
-
   if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (
+      url.includes("localhost:8080") &&
+      API_BASE_URL !== "http://localhost:8080"
+    ) {
+      return url.replace("http://localhost:8080", API_BASE_URL);
+    }
     return url;
   }
 

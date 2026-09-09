@@ -8,28 +8,21 @@ import {
   useNavigate,
   Navigate,
 } from "react-router-dom";
+import api from "./api/axios";
 import AdminDashboard from "./AdminDashboard";
 import AuthPage from "./AuthPage";
 import CheckoutPage from "./CheckoutPage";
 import ProfileSidebar from "./ProfileSidebar";
 
-const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-// 💡 處理圖片 URL，自動把舊的 localhost:8080 替換成 Render 域名
 const getImageUrl = (url) => {
   if (!url) return "";
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
-  if (url.includes("localhost:8080")) {
-    return url.replace("http://localhost:8080", API_BASE_URL);
-  }
-
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-
-  const cleanPath = url.startsWith("/") ? url : `/${url}`;
-  return `${API_BASE_URL}${cleanPath}`;
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
 // --- 1. 商品詳情頁 ---
@@ -496,7 +489,7 @@ function AppContent() {
         productName: item.name,
         price: item.price,
         quantity: item.quantity,
-        imageUrl: getImageUrl(item.imageUrl), // 💡 確保傳給後端的圖片網址也是修復後的格式
+        imageUrl: getImageUrl(item.imageUrl),
         productId: item.id,
       })),
     };

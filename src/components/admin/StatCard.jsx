@@ -5,7 +5,6 @@ export default function StatCard({ title, value, data, icon, color, grow }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // 強制延遲 300ms，等待 Tailwind/React 完成佈局計算
     const timer = setTimeout(() => setIsReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
