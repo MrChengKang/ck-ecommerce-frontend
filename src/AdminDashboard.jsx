@@ -17,6 +17,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import api from "./api/axios";
+import { uploadToCloudinary } from "./utils/cloudinary";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "./cropImage";
 import CustomerDetailModal from "./components/admin/CustomerDetailModal";
@@ -279,11 +280,24 @@ export default function AdminDashboard({
     setIsModalOpen(false);
     setIsCropping(false);
     setImage(null);
+
+    if (typeof setImageFile === "function") setImageFile(null);
+
     setEditingId(null);
+
     if (croppedImagePreview) {
       URL.revokeObjectURL(croppedImagePreview);
       setCroppedImagePreview(null);
     }
+
+    setNewProduct({
+      name: "",
+      price: "",
+      category: "",
+      imageUrl: "",
+      description: "",
+      stockQuantity: "",
+    });
   };
 
   const openEditModal = (product) => {
@@ -327,6 +341,18 @@ export default function AdminDashboard({
       : `${API_BASE_URL}/api/products`;
 
     try {
+      let finalImageUrl = newProduct.imageUrl;
+
+      if (image) {
+        const uploadedUrl = await uploadToCloudinary(image);
+        if (uploadedUrl) {
+          finalImageUrl = uploadedUrl;
+        } else {
+          alert("❌ Image upload failed. Please try again.");
+          return;
+        }
+      }
+
       const response = await fetch(url, {
         method: method,
         headers: {
@@ -335,6 +361,7 @@ export default function AdminDashboard({
         },
         body: JSON.stringify({
           ...newProduct,
+          imageUrl: finalImageUrl,
           price: parseFloat(newProduct.price),
         }),
       });
