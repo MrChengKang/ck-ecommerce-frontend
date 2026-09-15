@@ -287,17 +287,21 @@ function CartSidebar({
                     <div className="flex items-center gap-5 mt-4">
                       <div className="flex items-center bg-white rounded-full border border-gray-100 px-3 py-1.5 gap-4 shadow-sm">
                         <button
-                          className="w-4 h-4 flex items-center justify-center font-bold text-gray-400 hover:text-black"
+                          className="w-4 h-4 flex items-center justify-center font-bold text-gray-400 hover:text-black disabled:opacity-30 disabled:hover:text-gray-400 cursor-pointer disabled:cursor-not-allowed"
                           onClick={() => updateQuantity(item.id, -1)}
+                          disabled={item.quantity <= 1}
                         >
                           -
                         </button>
+
                         <span className="text-xs font-black w-4 text-center">
                           {item.quantity}
                         </span>
+
                         <button
-                          className="w-4 h-4 flex items-center justify-center font-bold text-gray-400 hover:text-black"
+                          className="w-4 h-4 flex items-center justify-center font-bold text-gray-400 hover:text-black disabled:opacity-30 disabled:hover:text-gray-400 cursor-pointer disabled:cursor-not-allowed"
                           onClick={() => updateQuantity(item.id, 1)}
+                          disabled={item.quantity >= (item.stockQuantity ?? 10)}
                         >
                           +
                         </button>
@@ -436,6 +440,7 @@ function AppContent() {
 
   useEffect(() => {
     const token = localStorage.getItem("ck_token");
+
     if (isLoggedIn && token) {
       fetch(`${API_BASE_URL}/api/users/me`, {
         headers: {
@@ -444,10 +449,25 @@ function AppContent() {
       })
         .then((res) => {
           if (res.ok) return res.json();
-          throw new Error("Unauthorized");
+
+          if (res.status === 401 || res.status === 403) {
+            throw new Error("TOKEN_EXPIRED");
+          }
+          throw new Error("SERVER_ERROR");
         })
         .then((data) => setUser(data))
-        .catch((err) => console.error("Fetch user error:", err));
+        .catch((err) => {
+          console.error("Fetch user error:", err.message);
+
+          if (
+            err.message === "TOKEN_EXPIRED" ||
+            err.message === "Unauthorized"
+          ) {
+            localStorage.removeItem("ck_token");
+            setIsLoggedIn(false);
+            setUser(null);
+          }
+        });
     }
   }, [isLoggedIn]);
 
@@ -475,8 +495,10 @@ function AppContent() {
     if (cart.length === 0) return;
     setIsPending(true);
 
+    const rawUserId = localStorage.getItem("ck_user_id");
+
     const orderData = {
-      customerId: localStorage.getItem("ck_user_id"),
+      customerId: rawUserId ? Number(rawUserId) : null,
       customerName: formData.name,
       customerEmail: formData.email,
       shippingAddress: formData.address,
@@ -503,13 +525,15 @@ function AppContent() {
 
       if (res.ok) {
         setCart([]);
-        fetchOrders();
+        if (typeof fetchOrders === "function") fetchOrders();
+        if (typeof fetchProducts === "function") fetchProducts();
         navigate("/success");
       } else {
         const msg = await res.text();
         alert("Checkout Failed: " + msg);
       }
     } catch (err) {
+      console.error("Checkout Exception:", err);
       alert("Server Error");
     } finally {
       setIsPending(false);
@@ -571,7 +595,15 @@ function AppContent() {
         updateQuantity={(id, d) =>
           setCart((prev) =>
             prev.map((i) =>
-              i.id === id ? { ...i, quantity: Math.max(1, i.quantity + d) } : i,
+              i.id === id
+                ? {
+                    ...i,
+                    quantity: Math.min(
+                      i.stockQuantity ?? 10,
+                      Math.max(1, i.quantity + d),
+                    ),
+                  }
+                : i,
             ),
           )
         }
@@ -641,6 +673,7 @@ function AppContent() {
           element={
             <CheckoutPage
               cart={cart}
+              setCart={setCart}
               isPending={isPending}
               onCheckout={handleCheckout}
               user={user}
