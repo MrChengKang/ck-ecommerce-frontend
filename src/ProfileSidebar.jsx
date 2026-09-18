@@ -89,7 +89,17 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
 
       if (res.ok) {
         const data = await res.json();
-        setUser({ ...user, profilePic: data.url });
+        console.log("Upload response data:", data);
+
+        const updatedPic = data.url;
+
+        if (typeof setUser === "function") {
+          setUser((prev) => ({ ...prev, profilePic: updatedPic }));
+        } else if (typeof setCurrentUser === "function") {
+          setCurrentUser((prev) => ({ ...prev, profilePic: updatedPic }));
+        }
+
+        localStorage.setItem("ck_profile_pic", updatedPic);
         showAlert("Avatar uploaded successfully!", "", "success");
       } else {
         const errorText = await res.text();
@@ -291,7 +301,7 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
               onClick={() => fileInputRef.current?.click()}
             >
               <img
-                src={getAvatarUrl(currentUser.profilePic)}
+                src={getAvatarUrl(user?.profilePic)}
                 className={`w-full h-full object-cover transition-all duration-300 ${
                   isUploading ? "animate-pulse opacity-40" : ""
                 }`}
