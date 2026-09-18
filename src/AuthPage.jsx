@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import PopoutAlert from "./components/PopoutAlert";
+import { useWishlist } from "./context/WishlistContext";
 
-const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const AuthInput = ({
   type,
@@ -20,10 +23,9 @@ const AuthInput = ({
       value={value}
       onChange={onChange}
       required
-      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold transition-all focus:bg-gray-100 border border-transparent focus:border-gray-200"
+      className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-xs font-black text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-black transition-all shadow-inner"
     />
 
-    {/* 💡 使用 Lucide Icon 替換 Emoji */}
     {isPasswordField && (
       <button
         type="button"
@@ -31,9 +33,9 @@ const AuthInput = ({
         className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
       >
         {showPassword ? (
-          <EyeOff size={20} strokeWidth={2.5} />
+          <EyeOff size={18} strokeWidth={2.5} />
         ) : (
-          <Eye size={20} strokeWidth={2.5} />
+          <Eye size={18} strokeWidth={2.5} />
         )}
       </button>
     )}
@@ -58,6 +60,18 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  const [alertConfig, setAlertConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+    onConfirm: null,
+  });
+
+  const showAlert = (title, message, type = "info", onConfirm = null) => {
+    setAlertConfig({ isOpen: true, title, message, type, onConfirm });
+  };
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,6 +88,8 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
       navigate("/admin", { replace: true });
     }
   }, [navigate]);
+
+  const { fetchWishlist } = useWishlist();
 
   const validateForm = () => {
     if (!isLogin) {
@@ -125,6 +141,13 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
           localStorage.setItem("ck_role", data.role);
           localStorage.setItem("ck_user_id", data.id);
           localStorage.setItem("ck_email", data.email);
+          localStorage.setItem(
+            "ck_username",
+            data.username || formData.username,
+          );
+
+          // 💡 關鍵新增：登入成功寫入 Token 後，立刻撈取該使用者的 Wishlist 資料
+          await fetchWishlist();
 
           setIsExiting(true);
 
@@ -136,8 +159,12 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
               : navigate("/", { replace: true });
           }, 500);
         } else {
-          alert("Registration Success!");
-          setIsLogin(true);
+          showAlert(
+            "Success",
+            "Registration completed! Please sign in with your account.",
+            "success",
+            () => setIsLogin(true),
+          );
         }
       } else {
         const errorMessages = {
@@ -157,7 +184,6 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
     }
   };
 
-  // 4. 處理 忘記密碼
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -183,13 +209,23 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
       const msg = await res.text();
       if (res.ok) {
         if (step === 1) {
-          alert("OTP Sent! Check your email.");
-          setStep(2);
+          showAlert(
+            "OTP Sent",
+            "Verification code sent! Check your email.",
+            "info",
+            () => setStep(2),
+          );
         } else {
-          alert("Password updated!");
-          setIsForgotPassword(false);
-          setIsLogin(true);
-          setStep(1);
+          showAlert(
+            "Success",
+            "Password updated successfully!",
+            "success",
+            () => {
+              setIsForgotPassword(false);
+              setIsLogin(true);
+              setStep(1);
+            },
+          );
         }
       } else {
         setError(msg);
@@ -202,32 +238,45 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
   };
 
   const primaryBtnClass =
-    "w-full bg-black text-white py-5 rounded-full font-black uppercase flex items-center justify-center gap-2 mt-4 hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-50";
+    "w-full bg-black text-white py-4 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 mt-2 hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-black/10";
 
   return (
     <div
-      className={`min-h-[80vh] flex items-center justify-center p-6 transition-all duration-500 ${
+      className={`min-h-[85vh] flex items-center justify-center px-4 py-12 relative bg-gray-50/50 transition-all duration-500 ${
         isExiting ? "opacity-0 scale-90 blur-sm" : "opacity-100 scale-100"
       }`}
     >
-      <div className="w-full max-w-[420px] bg-white border border-gray-100 p-12 rounded-[45px] shadow-2xl transition-all">
-        <h2 className="text-4xl font-black italic uppercase mb-10 text-center tracking-tighter">
-          {isForgotPassword ? "Reset" : isLogin ? "Sign In" : "Register"}
-        </h2>
+      {/* 質感幾何背景 */}
+      <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none" />
+
+      {/* 主卡片 */}
+      <div className="w-full max-w-[420px] bg-white border-2 border-gray-200/80 p-8 sm:p-10 rounded-[32px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.12)] relative z-10">
+        {/* 標題與簡介 */}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-black italic uppercase tracking-tight text-[#1d1d1f]">
+            {isForgotPassword ? "RESET" : isLogin ? "SIGN IN" : "REGISTER"}
+          </h2>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mt-2">
+            {isForgotPassword
+              ? "Account Recovery"
+              : isLogin
+                ? "Welcome back to CK Store"
+                : "Create your account"}
+          </p>
+        </div>
 
         {error && (
-          <div className="bg-red-50 text-red-500 p-4 rounded-2xl mb-6 text-[10px] font-bold text-center uppercase tracking-widest border border-red-100 animate-pulse">
+          <div className="bg-red-50 text-red-500 p-3.5 rounded-xl mb-6 text-[10px] font-black text-center uppercase tracking-widest border-2 border-red-200 animate-pulse">
             {error}
           </div>
         )}
 
         {isForgotPassword ? (
-          /* 忘記密碼表單 */
           <form onSubmit={handleForgotSubmit} className="space-y-4">
             {step === 1 ? (
               <AuthInput
                 type="email"
-                placeholder="EMAIL"
+                placeholder="EMAIL ADDRESS"
                 value={formData.email}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
@@ -246,22 +295,28 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
                   placeholder="NEW PASSWORD"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  isPasswordField={true}
+                  showPassword={showPassword}
+                  setShowPassword={setShowPassword}
                 />
                 <AuthInput
                   type="password"
                   placeholder="CONFIRM NEW PASSWORD"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  isPasswordField={true}
+                  showPassword={showPassword}
+                  setShowPassword={setShowPassword}
                 />
               </>
             )}
             <button disabled={isLoading} className={primaryBtnClass}>
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : step === 1 ? (
                 "Send Code"
               ) : (
-                "Reset"
+                "Reset Password"
               )}
             </button>
             <button
@@ -271,13 +326,12 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
                 setStep(1);
                 setError("");
               }}
-              className="w-full mt-4 text-[10px] font-black uppercase text-gray-400"
+              className="w-full mt-3 text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-black transition-colors cursor-pointer text-center"
             >
-              Back
+              ← Back to Sign In
             </button>
           </form>
         ) : (
-          /* 登入/註冊表單 */
           <form onSubmit={handleSubmit} className="space-y-4">
             <AuthInput
               type="text"
@@ -290,7 +344,7 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
             {!isLogin && (
               <AuthInput
                 type="email"
-                placeholder="EMAIL"
+                placeholder="EMAIL ADDRESS"
                 value={formData.email}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
@@ -304,9 +358,9 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
-              isPasswordField={true} // 👈 告訴組件這是密碼框
-              showPassword={showPassword} // 👈 傳入狀態
-              setShowPassword={setShowPassword} // 👈 傳入修改狀態的函數
+              isPasswordField={true}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
             />
             {!isLogin && (
               <AuthInput
@@ -322,16 +376,16 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
 
             <button disabled={isLoading} className={primaryBtnClass}>
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : isLogin ? (
-                "Login"
+                "Sign In"
               ) : (
                 "Register Now"
               )}
             </button>
 
             {isLogin && (
-              <div className="flex items-center justify-between mt-6 px-2">
+              <div className="flex items-center justify-between mt-5 px-1 pt-1">
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
@@ -340,11 +394,15 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
                     onChange={() => setRememberMe(!rememberMe)}
                   />
                   <div
-                    className={`w-5 h-5 border-2 rounded-md flex items-center justify-center transition-colors ${rememberMe ? "bg-black border-black text-white" : "border-gray-200 group-hover:border-black"}`}
+                    className={`w-4 h-4 border-2 rounded-md flex items-center justify-center transition-all ${
+                      rememberMe
+                        ? "bg-black border-black text-white"
+                        : "border-gray-300 group-hover:border-black"
+                    }`}
                   >
-                    {rememberMe && <span className="text-[10px]">✓</span>}
+                    {rememberMe && <span className="text-[9px]">✓</span>}
                   </div>
-                  <span className="text-[10px] font-black text-gray-400 uppercase">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-black transition-colors">
                     Remember
                   </span>
                 </label>
@@ -354,7 +412,7 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
                     setIsForgotPassword(true);
                     setError("");
                   }}
-                  className="text-[10px] font-black text-gray-400 uppercase hover:text-black transition-colors"
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-wider hover:text-black transition-colors cursor-pointer"
                 >
                   Forgot?
                 </button>
@@ -364,17 +422,35 @@ export default function AuthPage({ setIsLoggedIn, setUserRole }) {
         )}
 
         {!isForgotPassword && (
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError("");
-            }}
-            className="w-full mt-10 text-gray-400 text-[10px] font-black uppercase underline underline-offset-8 hover:text-black transition-colors"
-          >
-            {isLogin ? "Need account? Sign Up" : "Member? Sign In"}
-          </button>
+          <div className="mt-8 pt-6 border-t-2 border-gray-100 text-center">
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError("");
+              }}
+              className="text-gray-400 text-[11px] font-black uppercase tracking-wider hover:text-black transition-colors cursor-pointer"
+            >
+              {isLogin
+                ? "Need an account? Sign Up"
+                : "Already a member? Sign In"}
+            </button>
+          </div>
         )}
       </div>
+
+      <PopoutAlert
+        isOpen={alertConfig.isOpen}
+        onClose={() => {
+          if (typeof alertConfig.onConfirm === "function") {
+            alertConfig.onConfirm();
+          }
+          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+        }}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={alertConfig.onConfirm}
+      />
     </div>
   );
 }

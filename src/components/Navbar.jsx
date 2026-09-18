@@ -1,5 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { Heart } from "lucide-react";
+import { useWishlist } from "../context/WishlistContext";
 
 function Navbar({
   isAdminPath,
@@ -10,6 +12,8 @@ function Navbar({
   setIsCartOpen,
   cart,
 }) {
+  const { wishlistItems } = useWishlist();
+
   if (isAdminPath) return null;
 
   return (
@@ -70,6 +74,20 @@ function Navbar({
               Login
             </Link>
           )}
+
+          {/* 💡 願望清單按鈕 (放置於 Cart 左側) */}
+          <Link
+            to="/wishlist"
+            className="relative p-2 text-gray-600 hover:text-red-500 transition-colors flex items-center"
+            title="Wishlist"
+          >
+            <Heart size={22} />
+            {wishlistItems.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                {wishlistItems.length}
+              </span>
+            )}
+          </Link>
 
           {/* 💡 加大版 Cart 膠囊鈕 */}
           <button

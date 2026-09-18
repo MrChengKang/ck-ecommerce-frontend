@@ -28,6 +28,11 @@ function CartSidebar({
     return `${API_BASE_URL}${picPath}`;
   };
 
+  const handleStartShopping = () => {
+    if (onClose) onClose();
+    navigate("/");
+  };
+
   const processCheckout = () => {
     onClose();
     if (isLoggedIn) {
@@ -83,7 +88,7 @@ function CartSidebar({
                 Explore our catalog and add your favorite tech gear to the bag.
               </p>
               <button
-                onClick={onClose}
+                onClick={handleStartShopping}
                 className="mt-2 px-6 py-2.5 bg-black text-white text-xs font-bold rounded-full hover:bg-gray-800 transition-all cursor-pointer uppercase tracking-wider"
               >
                 START SHOPPING →

@@ -1,5 +1,7 @@
 import React, { useRef } from "react";
 import { Link } from "react-router-dom";
+import { Heart } from "lucide-react";
+import { useWishlist } from "../context/WishlistContext";
 
 function ProductGrid({
   searchTerm,
@@ -11,6 +13,8 @@ function ProductGrid({
   getImageUrl,
 }) {
   const scrollRef = useRef(null);
+
+  const { isInWishlist, toggleWishlist } = useWishlist();
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -87,32 +91,59 @@ function ProductGrid({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-14">
         {filteredProducts.length > 0 ? (
           <>
-            {filteredProducts.map((product) => (
-              <Link
-                to={`/product/${product.id}`}
-                key={product.id}
-                className="group"
-              >
-                <div className="overflow-hidden rounded-[45px] bg-[#f3f3f4] border border-gray-200/80 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl group-hover:border-gray-300 transition-all duration-700 relative">
-                  <img
-                    src={getImageUrl(product.imageUrl)}
-                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
-                    alt={product.name}
-                  />
-                </div>
-                <div className="flex justify-between items-start px-4">
-                  <div>
-                    <h3 className="font-black uppercase text-xs tracking-tight group-hover:text-blue-600 transition-colors">
-                      {product.name}
-                    </h3>
-                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] mt-1">
-                      {product.category}
+            {filteredProducts.map((product) => {
+              const isFav = isInWishlist(product.id);
+
+              return (
+                <Link
+                  to={`/product/${product.id}`}
+                  key={product.id}
+                  className="group relative"
+                >
+                  <div className="overflow-hidden rounded-[45px] bg-[#f3f3f4] border border-gray-200/80 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl group-hover:border-gray-300 transition-all duration-700 relative">
+                    <img
+                      src={getImageUrl(product.imageUrl)}
+                      className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
+                      alt={product.name}
+                    />
+
+                    {/* 3. 愛心按鈕 (右上角) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleWishlist(product);
+                      }}
+                      className="absolute top-5 right-5 p-3 rounded-full bg-white/80 backdrop-blur-md shadow-md border border-gray-100 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
+                    >
+                      <Heart
+                        size={18}
+                        className={`transition-colors ${
+                          isFav
+                            ? "fill-red-500 text-red-500 stroke-red-500"
+                            : "text-gray-400 hover:text-black"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex justify-between items-start px-4">
+                    <div>
+                      <h3 className="font-black uppercase text-xs tracking-tight group-hover:text-blue-600 transition-colors">
+                        {product.name}
+                      </h3>
+                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] mt-1">
+                        {product.category}
+                      </p>
+                    </div>
+                    <p className="font-black text-xl italic">
+                      RM{product.price}
                     </p>
                   </div>
-                  <p className="font-black text-xl italic">RM{product.price}</p>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </>
         ) : (
           <div className="col-span-full py-20 text-center space-y-4 animate-pulse">
@@ -121,7 +152,7 @@ function ProductGrid({
               No products found in "{selectedCategory}"
             </p>
             <button
-              onClick={() => setSelectedCategory("ALL")}
+              onClick={() => setSelectedCategory("All")}
               className="text-xs font-black underline underline-offset-4 hover:text-blue-600 cursor-pointer"
             >
               VIEW ALL PRODUCTS

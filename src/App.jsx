@@ -6,6 +6,7 @@ import {
   useNavigate,
   Navigate,
 } from "react-router-dom";
+import PopoutAlert from "./components/PopoutAlert";
 import OrderHistoryPage from "./OrderHistoryPage";
 import AdminDashboard from "./AdminDashboard";
 import AuthPage from "./AuthPage";
@@ -16,6 +17,8 @@ import Navbar from "./components/Navbar";
 import ProductGrid from "./components/ProductGrid";
 import Footer from "./components/Footer";
 import CartSidebar from "./components/CartSidebar";
+import { WishlistProvider, useWishlist } from "./context/WishlistContext";
+import WishlistPage from "./pages/Wishlist";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -114,16 +117,26 @@ function AppContent() {
   const [userRole, setUserRole] = useState(
     localStorage.getItem("ck_role") || "",
   );
+  const [alertConfig, setAlertConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+    onConfirm: null,
+  });
+
+  const { resetWishlist } = useWishlist();
 
   const handleLogout = (showMsg = true) => {
     const keysToRemove = ["ck_token", "ck_role", "ck_username", "ck_email"];
     keysToRemove.forEach((key) => localStorage.removeItem(key));
+    resetWishlist();
 
     setIsLoggedIn(false);
     setUserRole("");
 
     if (showMsg) {
-      alert("Logout Success!");
+      showAlert("Logged Out", "You have been logged out successfully.", "info");
     }
     navigate("/login", { replace: true });
   };
@@ -148,7 +161,11 @@ function AppContent() {
     const token = localStorage.getItem("ck_token");
 
     if (!isLoggedIn || !token) {
-      alert("Please login first!");
+      showAlert(
+        "Login Required",
+        "Please log in to view your profile.",
+        "warning",
+      );
       navigate("/login");
       return;
     }
@@ -161,8 +178,9 @@ function AppContent() {
       });
 
       if (res.status === 401) {
-        alert("Session expired. Please login again.");
-        handleLogout(false);
+        showAlert("Session Expired", "Please log in again.", "warning", () =>
+          handleLogout(false),
+        );
         return;
       }
 
@@ -171,11 +189,15 @@ function AppContent() {
         setUser(userData);
         setIsProfileOpen(true);
       } else {
-        alert("Failed to fetch profile details.");
+        showAlert("Failed to fetch profile details.", "", "error");
       }
     } catch (err) {
       console.error("Fetch profile error:", err);
-      alert("Server connection error.");
+      showAlert(
+        "Connection Error",
+        "Unable to connect to the server.",
+        "error",
+      );
     }
   };
 
@@ -234,6 +256,16 @@ function AppContent() {
     setIsCartOpen(true);
   };
 
+  const showAlert = (title, message, type = "info", onConfirm = null) => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      type,
+      onConfirm,
+    });
+  };
+
   const handleCheckout = async (formData) => {
     if (cart.length === 0) return;
     setIsPending(true);
@@ -288,12 +320,16 @@ function AppContent() {
         return true;
       } else {
         const msg = await res.text();
-        alert("Checkout Failed: " + (msg || "Please try again."));
+        showAlert("Checkout Failed", msg || "Please try again.", "error");
         return false;
       }
     } catch (err) {
       console.error("Checkout Exception:", err);
-      alert("Server Connection Error");
+      showAlert(
+        "Server Connection Error",
+        "Unable to connect to the server.",
+        "error",
+      );
       return false;
     } finally {
       setIsPending(false);
@@ -364,11 +400,19 @@ function AppContent() {
               />
             }
           />
+
           <Route
             path="/product/:id"
             element={<ProductDetail addToCart={addToCart} />}
           />
           <Route path="/success" element={<CheckoutSuccess />} />
+
+          <Route
+            path="/wishlist"
+            element={
+              <WishlistPage getImageUrl={getImageUrl} addToCart={addToCart} />
+            }
+          />
 
           <Route
             path="/orders"
@@ -412,7 +456,6 @@ function AppContent() {
             }
           />
 
-          {/* 💡 傳遞 setIsPending 給 CheckoutPage，確保離開頁面時能重置狀態 */}
           <Route
             path="/checkout"
             element={
@@ -437,6 +480,19 @@ function AppContent() {
         user={user}
         setUser={setUser}
       />
+      <PopoutAlert
+        isOpen={alertConfig.isOpen}
+        onClose={() => {
+          if (typeof alertConfig.onConfirm === "function") {
+            alertConfig.onConfirm();
+          }
+          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+        }}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={alertConfig.onConfirm}
+      />
     </div>
   );
 }
@@ -444,7 +500,9 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <WishlistProvider>
+        <AppContent />
+      </WishlistProvider>
     </BrowserRouter>
   );
 }

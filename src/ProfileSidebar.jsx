@@ -162,6 +162,13 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
 
     setIsSaving(true);
     try {
+      // 💡 1. 精確獲取登入時快取或目前 State 裡的「修改前 Username」
+      const oldUsername = (
+        localStorage.getItem("ck_username") ||
+        user?.username ||
+        ""
+      ).trim();
+
       const payload = {
         ...user,
         name: user.username,
@@ -183,34 +190,45 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
 
       if (res.ok) {
         const updatedUser = await res.json();
+        const newUsername = (
+          updatedUser.username ||
+          updatedUser.name ||
+          user.username ||
+          ""
+        ).trim();
 
-        const oldUsername = localStorage.getItem("ck_username");
-        const newUsername = updatedUser.username || updatedUser.name;
+        console.log("Check username change:", { oldUsername, newUsername });
 
-        if (oldUsername && oldUsername !== newUsername) {
+        // 💡 2. 判斷 Username 是否真的改變了
+        if (oldUsername && newUsername && oldUsername !== newUsername) {
+          // 💡 3. 強制清空所有 Key
+          const keysToRemove = [
+            "ck_token",
+            "ck_username",
+            "ck_email",
+            "ck_role",
+            "ck_user_id",
+            "ck_cart",
+          ];
+          keysToRemove.forEach((key) => localStorage.removeItem(key));
+
           showAlert(
             "Username Changed",
-            "Username changed successfully! Please log in again with your new credentials.",
+            "Your username was updated successfully. Please log in again with your new credentials.",
             "success",
             () => {
-              localStorage.removeItem("ck_token");
-              localStorage.removeItem("ck_username");
-              localStorage.removeItem("ck_role");
-              onClose();
-              window.location.reload();
+              window.location.href = "/login";
             },
           );
           return;
         }
 
+        // 如果只是改地址、電話等其他欄位
         setUser(updatedUser);
-        localStorage.setItem("ck_username", newUsername || "");
-
-        // 💡 替換成自訂 PopoutAlert
+        localStorage.setItem("ck_username", newUsername);
         showAlert("Success", "Profile updated successfully!", "success");
       } else {
         const errorMsg = await res.text();
-        // 💡 替換成自訂 PopoutAlert
         showAlert(
           "Update Failed",
           errorMsg || "Failed to update profile.",
@@ -219,7 +237,6 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
       }
     } catch (err) {
       console.error("Save error:", err);
-      // 💡 替換成自訂 PopoutAlert
       showAlert(
         "Server Error",
         "Server connection error, please try again later.",
@@ -465,7 +482,12 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
       </div>
       <PopoutAlert
         isOpen={alertConfig.isOpen}
-        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        onClose={() => {
+          if (typeof alertConfig.onConfirm === "function") {
+            alertConfig.onConfirm();
+          }
+          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+        }}
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
