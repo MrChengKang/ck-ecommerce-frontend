@@ -40,7 +40,8 @@ function ProfileSidebar({ isOpen, onClose, user, setUser, onOpenLoginModal }) {
     if (picPath.startsWith("http://") || picPath.startsWith("https://")) {
       return picPath;
     }
-    return `${API_BASE_URL}${picPath}`;
+    const normalizedPath = picPath.startsWith("/") ? picPath : `/${picPath}`;
+    return `${API_BASE_URL}${normalizedPath}`;
   };
 
   const getAuthHeader = () => {
