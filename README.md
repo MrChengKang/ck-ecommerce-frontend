@@ -5,6 +5,10 @@ A modern, responsive React frontend for an e-commerce platform built with **Reac
 🚀 **Live Demo**: [https://ck-ecommerce-frontend.vercel.app](https://ck-ecommerce-frontend.vercel.app)  
 🔗 **Backend Repo**: [ck-ecommerce-backend](https://github.com/MrChengKang/ck-ecommerce-backend)
 
+🔑 **Demo Credentials**:
+- **Username**: `admin`
+- **Password**: `Admin123`
+
 ---
 
 ## ✨ Key Features
