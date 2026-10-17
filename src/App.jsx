@@ -274,21 +274,12 @@ function AppContent() {
     const rawUserId = localStorage.getItem("ck_user_id");
 
     const orderData = {
-      customerId: rawUserId ? Number(rawUserId) : null,
       customerName: formData.name,
-      customerEmail: formData.email,
       shippingAddress: formData.address,
       paymentMethod: formData.paymentMethod,
-      totalAmount: cart.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0,
-      ),
       items: cart.map((item) => ({
-        productName: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        imageUrl: getImageUrl(item.imageUrl),
         productId: item.id,
+        quantity: item.quantity,
       })),
     };
 
