@@ -300,6 +300,11 @@ function AppContent() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      const checkoutKey =
+        sessionStorage.getItem("ck_checkout_key") || crypto.randomUUID();
+      sessionStorage.setItem("ck_checkout_key", checkoutKey);
+      headers["Idempotency-Key"] = checkoutKey;
+
       const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
         method: "POST",
         headers: headers,
@@ -307,6 +312,7 @@ function AppContent() {
       });
 
       if (res.ok) {
+        sessionStorage.removeItem("ck_checkout_key");
         setCart([]);
         localStorage.removeItem("ck_cart");
 
@@ -322,6 +328,10 @@ function AppContent() {
         return true;
       } else {
         const msg = await res.text();
+        // A received 4xx is a definitive rejection; allow a new checkout attempt.
+        if (res.status < 500) {
+          sessionStorage.removeItem("ck_checkout_key");
+        }
         showAlert("Checkout Failed", msg || "Please try again.", "error");
         return false;
       }
