@@ -2,6 +2,17 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { ShoppingCart } from "lucide-react";
 
+const formatOrderDate = (dateString) => {
+  if (!dateString) return "N/A";
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(dateString);
+  const date = new Date(hasTimezone ? dateString : `${dateString}Z`);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function OrdersTab({
   orders,
   setOrders,
@@ -127,7 +138,7 @@ export default function OrdersTab({
                   #ID-{order.id.toString().slice(-4)}
                 </p>
                 <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">
-                  {order.orderDate?.split("T")[0] || "2026-04-13"}
+                  {formatOrderDate(order.orderDate)}
                 </p>
               </div>
 

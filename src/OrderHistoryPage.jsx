@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const parseOrderDate = (dateString) => {
+  if (!dateString) return null;
+  // LocalDateTime from the backend has no offset; new records are stored as UTC.
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(dateString);
+  const date = new Date(hasTimezone ? dateString : `${dateString}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const OrderHistoryPage = ({ API_BASE_URL }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +28,9 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
       .then((data) => {
         // 將最新訂單排在最前面
         const sortedOrders = data.sort(
-          (a, b) => new Date(b.orderDate) - new Date(a.orderDate),
+          (a, b) =>
+            (parseOrderDate(b.orderDate)?.getTime() ?? 0) -
+            (parseOrderDate(a.orderDate)?.getTime() ?? 0),
         );
         setOrders(sortedOrders);
         setLoading(false);
@@ -32,8 +42,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
   }, [API_BASE_URL]);
 
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
+    const date = parseOrderDate(dateString);
+    if (!date) return "N/A";
     return date.toLocaleString("en-US", {
       year: "numeric",
       month: "short",
