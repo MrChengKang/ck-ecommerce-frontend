@@ -19,8 +19,14 @@ export default function OrdersTab({
 
   const fetchOrders = async (page = 0) => {
     try {
-      // 加上 size=5 確保每頁 5 筆
-      const response = await axios.get(`/api/orders?page=${page}&size=5`);
+      const token = localStorage.getItem("ck_token");
+      if (!token) {
+        throw new Error("Admin token is missing; please sign in again.");
+      }
+
+      const response = await axios.get(`/api/orders?page=${page}&size=5`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (response.data) {
         const content = response.data.content || response.data || [];
@@ -52,12 +58,15 @@ export default function OrdersTab({
   const getStatusBadgeStyle = (status) => {
     const styles = {
       PENDING: "bg-amber-50 text-amber-600 border-amber-200",
-      PAID: "bg-blue-50 text-blue-600 border-blue-200",
       SHIPPED: "bg-indigo-50 text-indigo-600 border-indigo-200",
-      DELIVERED: "bg-emerald-50 text-emerald-600 border-emerald-200",
+      COMPLETED: "bg-emerald-50 text-emerald-600 border-emerald-200",
       CANCELLED: "bg-rose-50 text-rose-600 border-rose-200",
     };
-    return `border px-3 py-1 rounded-full text-[9px] font-bold uppercase ${styles[status] || "bg-gray-100"}`;
+
+    const normalizedStatus = status?.toUpperCase();
+    return `border px-3 py-1 rounded-full text-[9px] font-bold uppercase ${
+      styles[normalizedStatus] || "bg-gray-100"
+    }`;
   };
 
   return (
@@ -168,11 +177,10 @@ export default function OrdersTab({
                     minWidth: "110px",
                   }}
                 >
-                  <option value="PENDING">Pending</option>
-                  <option value="PAID">Paid</option>
-                  <option value="SHIPPED">Shipped</option>
-                  <option value="DELIVERED">Delivered</option>
-                  <option value="CANCELLED">Cancelled</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Shipped">Shipped</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
 

@@ -380,13 +380,26 @@ export default function AdminDashboard({
     const token = localStorage.getItem("ck_token");
     try {
       const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
+
+      if (res.status === 409) {
+        const message = await res.text();
+        await fetchOrders();
+        window.alert(message || "不允許這項訂單狀態轉換。");
+        return;
+      }
+
+      if (!res.ok) {
+        const message = await res.text();
+        window.alert(message || `更新訂單狀態失敗（HTTP ${res.status}）。`);
+        return;
+      }
 
       if (res.ok) {
         if (typeof setOrders === "function") {

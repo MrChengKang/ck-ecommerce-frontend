@@ -150,9 +150,20 @@ function AppContent() {
 
   const fetchOrders = () => {
     if (userRole.toUpperCase() === "ADMIN") {
-      fetch(`${API_BASE_URL}/api/orders`)
-        .then((res) => res.json())
-        .then((data) => setOrders(data))
+      const token = localStorage.getItem("ck_token");
+      if (!token) {
+        setOrders([]);
+        return;
+      }
+
+      fetch(`${API_BASE_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`Fetch orders failed (${res.status})`);
+          return res.json();
+        })
+        .then((data) => setOrders(data.content || data || []))
         .catch((err) => console.error("Fetch orders error:", err));
     }
   };
