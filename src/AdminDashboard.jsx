@@ -416,7 +416,9 @@ export default function AdminDashboard({
   };
 
   const handleDeleteOrder = async (id) => {
-    if (!window.confirm("ARE YOU SURE YOU WANT TO DELETE THIS ORDER? 🚨"))
+    if (!window.confirm(
+      "Archive this order? It will be hidden from the active list. A Pending order will be cancelled and its stock returned.",
+    ))
       return;
 
     const token = localStorage.getItem("ck_token");
@@ -429,15 +431,37 @@ export default function AdminDashboard({
       });
 
       if (res.ok) {
-        alert("🗑️ ORDER DELETED SUCCESSFULLY!");
+        alert("ORDER ARCHIVED. You can restore it from Archived Orders.");
         if (refreshData) refreshData();
       } else {
         const errorMsg = await res.text();
-        alert("DELETE FAILED: " + errorMsg);
+        alert("ARCHIVE FAILED: " + errorMsg);
       }
     } catch (err) {
-      console.error("Delete order error:", err);
+      console.error("Archive order error:", err);
       alert("SERVER CONNECTION ERROR");
+    }
+  };
+
+  const handleRestoreOrder = async (id) => {
+    const token = localStorage.getItem("ck_token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${id}/restore`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        alert("RESTORE FAILED: " + (await res.text()));
+        return false;
+      }
+
+      alert("ORDER RESTORED TO THE ACTIVE LIST.");
+      return true;
+    } catch (err) {
+      console.error("Restore order error:", err);
+      alert("SERVER CONNECTION ERROR");
+      return false;
     }
   };
 
@@ -684,6 +708,7 @@ export default function AdminDashboard({
                     handleUpdateStatus={handleUpdateStatus}
                     setSelectedOrder={setSelectedOrder}
                     handleDeleteOrder={handleDeleteOrder}
+                    handleRestoreOrder={handleRestoreOrder}
                     getStatusStyles={getStatusStyles}
                   />
                 }

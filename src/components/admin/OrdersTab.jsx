@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { ShoppingCart } from "lucide-react";
 
@@ -8,25 +8,35 @@ export default function OrdersTab({
   handleUpdateStatus,
   setSelectedOrder,
   handleDeleteOrder,
+  handleRestoreOrder,
   getStatusStyles,
 }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [showArchived, setShowArchived] = useState(false);
+  const latestFetchId = useRef(0);
 
   useEffect(() => {
-    fetchOrders(currentPage);
-  }, [currentPage]);
+    fetchOrders(currentPage, showArchived);
+  }, [currentPage, showArchived]);
 
-  const fetchOrders = async (page = 0) => {
+  const fetchOrders = async (page = 0, archived = showArchived) => {
+    const fetchId = ++latestFetchId.current;
     try {
       const token = localStorage.getItem("ck_token");
       if (!token) {
         throw new Error("Admin token is missing; please sign in again.");
       }
 
-      const response = await axios.get(`/api/orders?page=${page}&size=5`, {
+      const endpoint = archived ? "/api/orders/archived" : "/api/orders";
+      const response = await axios.get(`${endpoint}?page=${page}&size=5`, {
         headers: { Authorization: `Bearer ${token}` },
+        // Make sure the browser/proxy doesn't reuse an older order-list response.
+        params: { _refresh: Date.now() },
       });
+
+      // A slower request from the previous view/page must not overwrite newer data.
+      if (fetchId !== latestFetchId.current) return;
 
       if (response.data) {
         const content = response.data.content || response.data || [];
@@ -45,6 +55,7 @@ export default function OrdersTab({
         }
       }
     } catch (error) {
+      if (fetchId !== latestFetchId.current) return;
       console.error("抓取失敗:", error);
     }
   };
@@ -81,6 +92,16 @@ export default function OrdersTab({
             Monitor your sales performance
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentPage(0);
+            setShowArchived((current) => !current);
+          }}
+          className="px-5 py-3 rounded-2xl border border-gray-200 text-[10px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all"
+        >
+          {showArchived ? "View active orders" : "View archived orders"}
+        </button>
       </div>
 
       {/* 💡 標題列 */}
@@ -168,20 +189,26 @@ export default function OrdersTab({
 
               {/* 04. Status Select */}
               <div className="col-span-1 flex justify-center">
-                <select
-                  value={order.status}
-                  onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
-                  className={`appearance-none text-center cursor-pointer transition-all outline-none ${getStatusBadgeStyle(order.status)}`}
-                  style={{
-                    textAlignLast: "center",
-                    minWidth: "110px",
-                  }}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Shipped">Shipped</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                {showArchived ? (
+                  <span className="border px-3 py-1 rounded-full text-[9px] font-bold uppercase bg-gray-100 text-gray-500">
+                    Archived
+                  </span>
+                ) : (
+                  <select
+                    value={order.status}
+                    onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                    className={`appearance-none text-center cursor-pointer transition-all outline-none ${getStatusBadgeStyle(order.status)}`}
+                    style={{
+                      textAlignLast: "center",
+                      minWidth: "110px",
+                    }}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                )}
               </div>
 
               {/* 05. Action */}
@@ -192,12 +219,32 @@ export default function OrdersTab({
                 >
                   Details
                 </button>
-                <button
-                  onClick={() => handleDeleteOrder(order.id)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                >
-                  🗑️
-                </button>
+                {showArchived ? (
+                  <button
+                    onClick={async () => {
+                      if (await handleRestoreOrder(order.id)) {
+                        // Remove it immediately, then reconcile with the server.
+                        // The fetch sequence guard prevents an older archived-list
+                        // request from putting this restored order back on screen.
+                        setOrders((current) =>
+                          current.filter((item) => item.id !== order.id),
+                        );
+                        await fetchOrders(currentPage, true);
+                      }
+                    }}
+                    className="px-4 py-2 bg-white text-emerald-700 border border-emerald-100 rounded-full font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"
+                  >
+                    Restore
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleDeleteOrder(order.id)}
+                    title="Archive order"
+                    className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  >
+                    📦
+                  </button>
+                )}
               </div>
             </div>
           ))
