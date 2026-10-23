@@ -45,8 +45,8 @@ function CheckoutSuccess() {
         THANK YOU FOR YOUR ORDER.
       </h1>
       <p className="text-xs font-medium text-gray-500 max-w-sm mb-8 leading-relaxed">
-        Your payment was processed successfully. We've received your order and
-        are preparing it for delivery.
+        We received your return from Billplz. Your payment status will be
+        confirmed after our server verifies it.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
@@ -278,11 +278,10 @@ function AppContent() {
   };
 
   const handleCheckout = async (formData) => {
-    if (cart.length === 0) return;
+    if (cart.length === 0) return false;
     setIsPending(true);
 
     const token = localStorage.getItem("ck_token");
-    const rawUserId = localStorage.getItem("ck_user_id");
 
     const orderData = {
       customerName: formData.name,
@@ -295,51 +294,76 @@ function AppContent() {
     };
 
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
       const checkoutKey =
         sessionStorage.getItem("ck_checkout_key") || crypto.randomUUID();
       sessionStorage.setItem("ck_checkout_key", checkoutKey);
-      headers["Idempotency-Key"] = checkoutKey;
 
-      const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "Idempotency-Key": checkoutKey,
+      };
+
+      const checkoutRes = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
         method: "POST",
-        headers: headers,
+        headers,
         body: JSON.stringify(orderData),
       });
 
-      if (res.ok) {
-        sessionStorage.removeItem("ck_checkout_key");
-        setCart([]);
-        localStorage.removeItem("ck_cart");
+      if (!checkoutRes.ok) {
+        const message = await checkoutRes.text();
 
-        try {
-          if (typeof fetchOrders === "function") fetchOrders();
-          if (typeof fetchData === "function") fetchData();
-        } catch (e) {
-          console.warn("Background fetch warning:", e);
-        }
-
-        setIsPending(false);
-        navigate("/success", { replace: true });
-        return true;
-      } else {
-        const msg = await res.text();
-        // A received 4xx is a definitive rejection; allow a new checkout attempt.
-        if (res.status < 500) {
+        if (checkoutRes.status < 500) {
           sessionStorage.removeItem("ck_checkout_key");
         }
-        showAlert("Checkout Failed", msg || "Please try again.", "error");
+
+        showAlert("Checkout Failed", message || "Please try again.", "error");
         return false;
       }
+
+      const order = await checkoutRes.json();
+
+      const paymentRes = await fetch(
+        `${API_BASE_URL}/api/orders/${order.id}/payment`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!paymentRes.ok) {
+        const message = await paymentRes.text();
+        showAlert(
+          "Payment Setup Failed",
+          message || "Could not create a Billplz payment link. Please retry.",
+          "error",
+        );
+        return false;
+      }
+
+      const payment = await paymentRes.json();
+
+      if (!payment.paymentUrl) {
+        showAlert(
+          "Payment Setup Failed",
+          "Billplz did not return a payment link.",
+          "error",
+        );
+        return false;
+      }
+
+      sessionStorage.removeItem("ck_checkout_key");
+      localStorage.removeItem("ck_cart");
+
+      window.location.assign(payment.paymentUrl);
+      return false;
     } catch (err) {
-      console.error("Checkout Exception:", err);
+      console.error("Checkout or payment exception:", err);
       showAlert(
-        "Server Connection Error",
-        "Unable to connect to the server.",
+        "Connection Error",
+        "Unable to connect to the server. Please retry.",
         "error",
       );
       return false;

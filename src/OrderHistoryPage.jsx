@@ -71,6 +71,20 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
     }
   };
 
+  const getPaymentStatusBadge = (paymentStatus) => {
+    switch ((paymentStatus || "").toUpperCase()) {
+      case "PAID":
+        return "bg-emerald-50 text-emerald-600 border-emerald-200";
+      case "UNPAID":
+        return "bg-amber-50 text-amber-600 border-amber-200";
+      case "FAILED":
+      case "REFUNDED":
+        return "bg-rose-50 text-rose-600 border-rose-200";
+      default:
+        return "bg-gray-50 text-gray-500 border-gray-200";
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
@@ -147,13 +161,22 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                     </p>
                   </div>
 
-                  <span
-                    className={`px-3.5 py-1 text-[10px] font-black tracking-widest rounded-full border uppercase ${getStatusBadge(
-                      order.status,
-                    )}`}
-                  >
-                    {order.status || "Pending"}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`px-3.5 py-1 text-[10px] font-black tracking-widest rounded-full border uppercase ${getStatusBadge(
+                        order.status,
+                      )}`}
+                    >
+                      {order.status || "Pending"}
+                    </span>
+                    <span
+                      className={`px-3.5 py-1 text-[10px] font-black tracking-widest rounded-full border uppercase ${getPaymentStatusBadge(
+                        order.paymentStatus,
+                      )}`}
+                    >
+                      Payment: {order.paymentStatus || "N/A"}
+                    </span>
+                  </div>
                 </div>
 
                 {/* 商品列表 */}
