@@ -80,6 +80,7 @@ export default function OrdersTab({
   const getStatusBadgeStyle = (status) => {
     const styles = {
       PENDING: "bg-amber-50 text-amber-600 border-amber-200",
+      PROCESSING: "bg-violet-50 text-violet-600 border-violet-200",
       SHIPPED: "bg-indigo-50 text-indigo-600 border-indigo-200",
       COMPLETED: "bg-emerald-50 text-emerald-600 border-emerald-200",
       CANCELLED: "bg-rose-50 text-rose-600 border-rose-200",
@@ -89,6 +90,18 @@ export default function OrdersTab({
     return `border px-3 py-1 rounded-full text-[9px] font-bold uppercase ${
       styles[normalizedStatus] || "bg-gray-100"
     }`;
+  };
+
+  const getNextStatuses = (order) => {
+    const status = (order.status || "Pending").toUpperCase();
+    if (status === "PENDING") {
+      return (order.paymentStatus || "UNPAID").toUpperCase() === "PAID"
+        ? ["Processing"]
+        : ["Cancelled"];
+    }
+    if (status === "PROCESSING") return ["Shipped"];
+    if (status === "SHIPPED") return ["Completed"];
+    return [];
   };
 
   return (
@@ -205,20 +218,30 @@ export default function OrdersTab({
                     Archived
                   </span>
                 ) : (
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
-                    className={`appearance-none text-center cursor-pointer transition-all outline-none ${getStatusBadgeStyle(order.status)}`}
-                    style={{
-                      textAlignLast: "center",
-                      minWidth: "110px",
-                    }}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Shipped">Shipped</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className={getStatusBadgeStyle(order.status)}>{order.status || "Pending"}</span>
+                    {order.paymentStatus && (
+                      <span className="text-[8px] font-bold uppercase text-gray-400">
+                        Payment: {order.paymentStatus}
+                        {order.status?.toUpperCase() === "CANCELLED" && order.paymentStatus.toUpperCase() === "PAID"
+                          ? " · Review payment"
+                          : ""}
+                      </span>
+                    )}
+                    {getNextStatuses(order).length > 0 && (
+                      <select
+                        value=""
+                        onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                        className="max-w-[130px] rounded-lg border border-gray-200 bg-white px-2 py-1 text-[9px] font-bold text-gray-500 outline-none"
+                        aria-label={`Update order ${order.id} status`}
+                      >
+                        <option value="" disabled>Update status</option>
+                        {getNextStatuses(order).map((nextStatus) => (
+                          <option key={nextStatus} value={nextStatus}>{nextStatus}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 )}
               </div>
 

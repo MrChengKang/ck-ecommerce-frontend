@@ -35,18 +35,18 @@ function CheckoutSuccess() {
   const navigate = useNavigate();
   return (
     <div className="min-h-[75vh] flex flex-col items-center justify-center text-center px-6 py-12 animate-in zoom-in-95 duration-300">
-      <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl border border-emerald-200/80 flex items-center justify-center text-4xl mb-6 shadow-sm">
-        ✓
+      <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl border border-blue-200/80 flex items-center justify-center text-4xl mb-6 shadow-sm">
+        ◷
       </div>
       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">
-        ORDER CONFIRMED
+        PAYMENT PROCESSING
       </span>
       <h1 className="text-3xl lg:text-4xl font-black text-[#1d1d1f] italic tracking-tight uppercase mb-3">
-        THANK YOU FOR YOUR ORDER.
+        WE'RE CONFIRMING YOUR PAYMENT.
       </h1>
       <p className="text-xs font-medium text-gray-500 max-w-sm mb-8 leading-relaxed">
-        We received your return from Billplz. Your payment status will be
-        confirmed after our server verifies it.
+        Billplz returned you to the shop. Check your order history for the
+        verified payment status and the next order step.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">

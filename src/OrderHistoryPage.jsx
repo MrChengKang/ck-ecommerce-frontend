@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const parseOrderDate = (dateString) => {
@@ -12,34 +12,126 @@ const parseOrderDate = (dateString) => {
 const OrderHistoryPage = ({ API_BASE_URL }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [retryingOrderId, setRetryingOrderId] = useState(null);
+  const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState(null);
+  const [paymentCheckMessage, setPaymentCheckMessage] = useState("");
+  const [paymentCheckMessageOrderId, setPaymentCheckMessageOrderId] = useState(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentErrorOrderId, setPaymentErrorOrderId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadOrders = useCallback(async () => {
     const token = localStorage.getItem("ck_token");
-    fetch(`${API_BASE_URL}/api/orders/my-orders`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch orders");
-        return res.json();
-      })
-      .then((data) => {
-        // 將最新訂單排在最前面
-        const sortedOrders = data.sort(
-          (a, b) =>
-            (parseOrderDate(b.orderDate)?.getTime() ?? 0) -
-            (parseOrderDate(a.orderDate)?.getTime() ?? 0),
-        );
-        setOrders(sortedOrders);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/orders/my-orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
+      if (!response.ok) throw new Error("Failed to fetch orders");
+      const data = await response.json();
+      const sortedOrders = data.sort(
+        (a, b) =>
+          (parseOrderDate(b.orderDate)?.getTime() ?? 0) -
+          (parseOrderDate(a.orderDate)?.getTime() ?? 0),
+      );
+      setOrders(sortedOrders);
+      setLoadError("");
+    } catch (error) {
+      console.error("Refresh order history failed:", error);
+      setLoadError("Could not refresh payment status. Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [API_BASE_URL]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const hasUnpaidPendingOrder = orders.some(
+    (order) =>
+      order.status?.toUpperCase() === "PENDING" &&
+      order.paymentStatus?.toUpperCase() !== "PAID",
+  );
+
+  useEffect(() => {
+    if (!hasUnpaidPendingOrder) return undefined;
+
+    const poll = window.setInterval(loadOrders, 5000);
+    const stopPolling = window.setTimeout(() => window.clearInterval(poll), 120000);
+    return () => {
+      window.clearInterval(poll);
+      window.clearTimeout(stopPolling);
+    };
+  }, [hasUnpaidPendingOrder, loadOrders]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") loadOrders();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [loadOrders]);
+
+  const retryPayment = async (order) => {
+    setRetryingOrderId(order.id);
+    setPaymentError("");
+    setPaymentErrorOrderId(order.id);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/orders/${order.id}/payment`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("ck_token")}` },
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Could not reopen the payment link.");
+      }
+      const payment = await response.json();
+      if (!payment.paymentUrl) throw new Error("Billplz did not return a payment link.");
+      window.location.assign(payment.paymentUrl);
+    } catch (error) {
+      setPaymentError(error.message || "Could not start payment. Please try again.");
+      setRetryingOrderId(null);
+    }
+  };
+
+  const reconcilePayment = async (order) => {
+    setCheckingPaymentOrderId(order.id);
+    setPaymentError("");
+    setPaymentErrorOrderId(order.id);
+    setPaymentCheckMessage("");
+    setPaymentCheckMessageOrderId(order.id);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders/${order.id}/payment/reconcile`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${localStorage.getItem("ck_token")}` },
+        },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.message || "Could not verify payment with Billplz.");
+      }
+      await loadOrders();
+      if (result.paymentStatus?.toUpperCase() === "PAID") {
+        setPaymentCheckMessage("");
+      } else {
+        setPaymentCheckMessage(result.message || "Billplz still shows this payment as unpaid.");
+      }
+    } catch (error) {
+      setPaymentError(error.message || "Could not verify payment. Please try again.");
+    } finally {
+      setCheckingPaymentOrderId(null);
+    }
+  };
 
   const formatDate = (dateString) => {
     const date = parseOrderDate(dateString);
@@ -66,6 +158,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
         return "bg-rose-50 text-rose-600 border-rose-200";
       case "SHIPPED":
         return "bg-sky-50 text-sky-600 border-sky-200";
+      case "PROCESSING":
+        return "bg-violet-50 text-violet-600 border-violet-200";
       default:
         return "bg-amber-50 text-amber-600 border-amber-200";
     }
@@ -111,10 +205,33 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
             <h2 className="text-3xl font-black italic tracking-tight uppercase text-[#1d1d1f]">
               ORDER HISTORY.
             </h2>
+            {loadError && (
+              <p role="alert" className="mt-2 text-xs font-bold text-rose-600">
+                {loadError}
+              </p>
+            )}
           </div>
-          <span className="px-4 py-1.5 bg-white rounded-full text-xs font-bold text-gray-500 border border-gray-200/80 shadow-sm">
-            {orders.length} {orders.length === 1 ? "RECORD" : "RECORDS"}
-          </span>
+          <div className="flex items-center gap-3">
+            {hasUnpaidPendingOrder && (
+              <span className="hidden sm:inline text-[10px] font-bold text-gray-400">
+                Checking payment updates…
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setRefreshing(true);
+                loadOrders();
+              }}
+              disabled={refreshing}
+              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+            <span className="px-4 py-1.5 bg-white rounded-full text-xs font-bold text-gray-500 border border-gray-200/80 shadow-sm">
+              {orders.length} {orders.length === 1 ? "RECORD" : "RECORDS"}
+            </span>
+          </div>
         </div>
 
         {/* 訂單內容區塊 */}
@@ -222,6 +339,52 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                     RM{Number(order.totalAmount || 0).toFixed(2)}
                   </span>
                 </div>
+                {paymentError && retryingOrderId === null && paymentErrorOrderId === order.id && (
+                  <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">
+                    {paymentError}
+                  </p>
+                )}
+                {paymentCheckMessage && paymentCheckMessageOrderId === order.id && (
+                  <p role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
+                    {paymentCheckMessage}
+                  </p>
+                )}
+                {order.status?.toUpperCase() === "PENDING" &&
+                  order.paymentStatus?.toUpperCase() !== "PAID" && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                      {order.paymentExpiresAt &&
+                      (parseOrderDate(order.paymentExpiresAt)?.getTime() ?? 0) <= Date.now() ? (
+                        <p className="text-xs font-bold text-rose-600">
+                          Payment window expired. Verify the payment before creating another order.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500">
+                          Payment is due within 30 minutes. Failed payments can be retried before expiry.
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={checkingPaymentOrderId === order.id || retryingOrderId === order.id}
+                          onClick={() => reconcilePayment(order)}
+                          className="rounded-full border border-gray-200 bg-white px-5 py-3 text-[10px] font-black uppercase tracking-wider text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {checkingPaymentOrderId === order.id ? "Checking…" : "Verify payment"}
+                        </button>
+                        {(!order.paymentExpiresAt ||
+                          (parseOrderDate(order.paymentExpiresAt)?.getTime() ?? 0) > Date.now()) && (
+                            <button
+                              type="button"
+                              disabled={checkingPaymentOrderId === order.id || retryingOrderId === order.id}
+                              onClick={() => retryPayment(order)}
+                              className="rounded-full bg-[#0071e3] px-6 py-3 text-[10px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-[#0077ed] disabled:opacity-50"
+                            >
+                              {retryingOrderId === order.id ? "Opening payment…" : "Pay now / Retry"}
+                            </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
             ))}
           </div>
