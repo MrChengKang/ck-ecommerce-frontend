@@ -106,6 +106,11 @@ function ProductGrid({
                       className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
                       alt={product.name}
                     />
+                    <span className={`absolute bottom-4 left-4 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider shadow-sm ${Number(product.stockQuantity ?? 0) <= 0 ? "bg-red-600 text-white" : "bg-white/90 text-gray-700"}`}>
+                      {Number(product.stockQuantity ?? 0) <= 0
+                        ? "Sold Out"
+                        : `${product.stockQuantity} in stock`}
+                    </span>
 
                     {/* 3. 愛心按鈕 (右上角) */}
                     <button

@@ -1,5 +1,4 @@
-import React from "react";
-import api from "../../api/axios";
+import React, { useEffect, useState } from "react";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -34,7 +33,50 @@ export default function ProductsTab({
   setIsModalOpen,
   openEditModal,
   handleDeleteProduct,
+  refreshData,
 }) {
+  const [stockDrafts, setStockDrafts] = useState({});
+  const [savingStockId, setSavingStockId] = useState(null);
+  const [stockError, setStockError] = useState("");
+
+  useEffect(() => {
+    setStockDrafts(Object.fromEntries(
+      (Array.isArray(products) ? products : []).map((product) => [product.id, String(product.stockQuantity ?? 0)]),
+    ));
+  }, [products]);
+
+  const saveStock = async (productId) => {
+    const value = stockDrafts[productId];
+    if (!/^\d+$/.test(value ?? "")) {
+      setStockError("Stock must be a whole number of zero or more.");
+      return;
+    }
+
+    setSavingStockId(productId);
+    setStockError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/products/${productId}/stock`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+        },
+        body: JSON.stringify({ stockQuantity: Number(value) }),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Could not update stock (HTTP ${response.status}).`);
+      }
+
+      if (refreshData) await refreshData();
+    } catch (error) {
+      setStockError(error.message || "Could not update stock.");
+    } finally {
+      setSavingStockId(null);
+    }
+  };
+
   const filteredProducts = Array.isArray(products)
     ? products.filter(
         (p) =>
@@ -88,6 +130,11 @@ export default function ProductsTab({
           </button>
         </div>
       </div>
+      {stockError && (
+        <p role="alert" className="mx-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+          {stockError}
+        </p>
+      )}
 
       {/* 標題列 */}
       <div className="grid grid-cols-6 px-12 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
@@ -140,15 +187,31 @@ export default function ProductsTab({
                 RM{p.price.toFixed(2)}
               </div>
 
-              <div className="col-span-1 text-center">
+              <div className="col-span-1 flex flex-col items-center justify-center gap-1">
                 <p
-                  className={`text-xs font-black ${p.stockQuantity < 5 ? "text-orange-500" : "text-gray-600"}`}
+                  className={`text-[9px] font-black ${Number(p.stockQuantity ?? 0) < 5 ? "text-orange-500" : "text-gray-600"}`}
                 >
-                  {p.stockQuantity}{" "}
-                  <span className="text-[8px] uppercase text-gray-400">
-                    pcs
-                  </span>
+                  {Number(p.stockQuantity ?? 0) < 5 ? "LOW STOCK" : "IN STOCK"}
                 </p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    aria-label={`Stock quantity for ${p.name}`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={stockDrafts[p.id] ?? ""}
+                    onChange={(event) => setStockDrafts((current) => ({ ...current, [p.id]: event.target.value }))}
+                    className="w-16 rounded-lg border border-gray-200 bg-white px-1 py-1.5 text-center text-xs font-bold outline-none focus:border-blue-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={savingStockId === p.id || String(p.stockQuantity ?? 0) === String(stockDrafts[p.id] ?? "")}
+                    onClick={() => saveStock(p.id)}
+                    className="rounded-lg bg-black px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                  >
+                    {savingStockId === p.id ? "…" : "Save"}
+                  </button>
+                </div>
               </div>
 
               <div className="col-span-1 flex justify-end items-center gap-3">

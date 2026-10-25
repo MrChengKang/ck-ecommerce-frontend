@@ -334,6 +334,11 @@ export default function AdminDashboard({
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
+    const stockQuantity = Number(newProduct.stockQuantity);
+    if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
+      window.alert("Stock must be a whole number of zero or more.");
+      return;
+    }
     const token = localStorage.getItem("ck_token");
     const method = editingId ? "PUT" : "POST";
     const url = editingId
@@ -684,6 +689,7 @@ export default function AdminDashboard({
                 element={
                   <ProductsTab
                     products={products}
+                    refreshData={refreshData}
                     loading={loading}
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
@@ -843,6 +849,8 @@ export default function AdminDashboard({
                 </select>
                 <input
                   type="number"
+                  min="0"
+                  step="1"
                   required
                   placeholder="Stock"
                   className="w-full p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm"
