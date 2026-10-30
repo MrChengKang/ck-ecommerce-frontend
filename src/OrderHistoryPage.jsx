@@ -15,7 +15,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
   const [retryingOrderId, setRetryingOrderId] = useState(null);
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState(null);
   const [paymentCheckMessage, setPaymentCheckMessage] = useState("");
-  const [paymentCheckMessageOrderId, setPaymentCheckMessageOrderId] = useState(null);
+  const [paymentCheckMessageOrderId, setPaymentCheckMessageOrderId] =
+    useState(null);
   const [paymentError, setPaymentError] = useState("");
   const [paymentErrorOrderId, setPaymentErrorOrderId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,7 +62,10 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
     if (!hasUnpaidPendingOrder) return undefined;
 
     const poll = window.setInterval(loadOrders, 5000);
-    const stopPolling = window.setTimeout(() => window.clearInterval(poll), 120000);
+    const stopPolling = window.setTimeout(
+      () => window.clearInterval(poll),
+      120000,
+    );
     return () => {
       window.clearInterval(poll);
       window.clearTimeout(stopPolling);
@@ -85,19 +89,27 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
     setPaymentError("");
     setPaymentErrorOrderId(order.id);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/orders/${order.id}/payment`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("ck_token")}` },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders/${order.id}/payment`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+          },
+        },
+      );
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Could not reopen the payment link.");
       }
       const payment = await response.json();
-      if (!payment.paymentUrl) throw new Error("Billplz did not return a payment link.");
+      if (!payment.paymentUrl)
+        throw new Error("Billplz did not return a payment link.");
       window.location.assign(payment.paymentUrl);
     } catch (error) {
-      setPaymentError(error.message || "Could not start payment. Please try again.");
+      setPaymentError(
+        error.message || "Could not start payment. Please try again.",
+      );
       setRetryingOrderId(null);
     }
   };
@@ -113,21 +125,29 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
         `${API_BASE_URL}/api/orders/${order.id}/payment/reconcile`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${localStorage.getItem("ck_token")}` },
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+          },
         },
       );
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result.message || "Could not verify payment with Billplz.");
+        throw new Error(
+          result.message || "Could not verify payment with Billplz.",
+        );
       }
       await loadOrders();
       if (result.paymentStatus?.toUpperCase() === "PAID") {
         setPaymentCheckMessage("");
       } else {
-        setPaymentCheckMessage(result.message || "Billplz still shows this payment as unpaid.");
+        setPaymentCheckMessage(
+          result.message || "Billplz still shows this payment as unpaid.",
+        );
       }
     } catch (error) {
-      setPaymentError(error.message || "Could not verify payment. Please try again.");
+      setPaymentError(
+        error.message || "Could not verify payment. Please try again.",
+      );
     } finally {
       setCheckingPaymentOrderId(null);
     }
@@ -339,52 +359,104 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                     RM{Number(order.totalAmount || 0).toFixed(2)}
                   </span>
                 </div>
-                {paymentError && retryingOrderId === null && paymentErrorOrderId === order.id && (
-                  <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">
-                    {paymentError}
-                  </p>
-                )}
-                {paymentCheckMessage && paymentCheckMessageOrderId === order.id && (
-                  <p role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
-                    {paymentCheckMessage}
-                  </p>
-                )}
+                {paymentError &&
+                  retryingOrderId === null &&
+                  paymentErrorOrderId === order.id && (
+                    <p
+                      role="alert"
+                      className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600"
+                    >
+                      {paymentError}
+                    </p>
+                  )}
+                {paymentCheckMessage &&
+                  paymentCheckMessageOrderId === order.id && (
+                    <p
+                      role="status"
+                      className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700"
+                    >
+                      {paymentCheckMessage}
+                    </p>
+                  )}
                 {order.status?.toUpperCase() === "PENDING" &&
                   order.paymentStatus?.toUpperCase() !== "PAID" && (
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
                       {order.paymentExpiresAt &&
-                      (parseOrderDate(order.paymentExpiresAt)?.getTime() ?? 0) <= Date.now() ? (
+                      (parseOrderDate(order.paymentExpiresAt)?.getTime() ??
+                        0) <= Date.now() ? (
                         <p className="text-xs font-bold text-rose-600">
-                          Payment window expired. Verify the payment before creating another order.
+                          Payment window expired. Verify the payment before
+                          creating another order.
                         </p>
                       ) : (
                         <p className="text-xs text-gray-500">
-                          Payment is due within 30 minutes. Failed payments can be retried before expiry.
+                          Payment is due within 30 minutes. Failed payments can
+                          be retried before expiry.
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          disabled={checkingPaymentOrderId === order.id || retryingOrderId === order.id}
+                          disabled={
+                            checkingPaymentOrderId === order.id ||
+                            retryingOrderId === order.id
+                          }
                           onClick={() => reconcilePayment(order)}
                           className="rounded-full border border-gray-200 bg-white px-5 py-3 text-[10px] font-black uppercase tracking-wider text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
                         >
-                          {checkingPaymentOrderId === order.id ? "Checking…" : "Verify payment"}
+                          {checkingPaymentOrderId === order.id
+                            ? "Checking…"
+                            : "Verify payment"}
                         </button>
                         {(!order.paymentExpiresAt ||
-                          (parseOrderDate(order.paymentExpiresAt)?.getTime() ?? 0) > Date.now()) && (
-                            <button
-                              type="button"
-                              disabled={checkingPaymentOrderId === order.id || retryingOrderId === order.id}
-                              onClick={() => retryPayment(order)}
-                              className="rounded-full bg-[#0071e3] px-6 py-3 text-[10px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-[#0077ed] disabled:opacity-50"
-                            >
-                              {retryingOrderId === order.id ? "Opening payment…" : "Pay now / Retry"}
-                            </button>
+                          (parseOrderDate(order.paymentExpiresAt)?.getTime() ??
+                            0) > Date.now()) && (
+                          <button
+                            type="button"
+                            disabled={
+                              checkingPaymentOrderId === order.id ||
+                              retryingOrderId === order.id
+                            }
+                            onClick={() => retryPayment(order)}
+                            className="rounded-full bg-[#0071e3] px-6 py-3 text-[10px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-[#0077ed] disabled:opacity-50"
+                          >
+                            {retryingOrderId === order.id
+                              ? "Opening payment…"
+                              : "Pay now / Retry"}
+                          </button>
                         )}
                       </div>
                     </div>
                   )}
+                {order.shippingCarrier && order.trackingNumber && (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm">
+                    <p className="font-bold text-gray-800">Shipment details</p>
+                    <p className="mt-2 text-gray-600">
+                      Carrier: {order.shippingCarrier}
+                    </p>
+                    <p className="text-gray-600">
+                      Tracking number:{" "}
+                      <span className="font-mono font-bold">
+                        {order.trackingNumber}
+                      </span>
+                    </p>
+                    {order.shippedAt && (
+                      <p className="text-xs text-gray-500">
+                        Shipped: {formatDate(order.shippedAt)}
+                      </p>
+                    )}
+                    {order.trackingUrl && (
+                      <a
+                        href={order.trackingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-block font-bold text-blue-700 underline"
+                      >
+                        Track package
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

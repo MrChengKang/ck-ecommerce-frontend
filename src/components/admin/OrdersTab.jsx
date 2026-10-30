@@ -99,7 +99,7 @@ export default function OrdersTab({
         ? ["Processing"]
         : ["Cancelled"];
     }
-    if (status === "PROCESSING") return ["Shipped"];
+    if (status === "PROCESSING") return [];
     if (status === "SHIPPED") return ["Completed"];
     return [];
   };
@@ -219,11 +219,14 @@ export default function OrdersTab({
                   </span>
                 ) : (
                   <div className="flex flex-col items-center gap-1.5">
-                    <span className={getStatusBadgeStyle(order.status)}>{order.status || "Pending"}</span>
+                    <span className={getStatusBadgeStyle(order.status)}>
+                      {order.status || "Pending"}
+                    </span>
                     {order.paymentStatus && (
                       <span className="text-[8px] font-bold uppercase text-gray-400">
                         Payment: {order.paymentStatus}
-                        {order.status?.toUpperCase() === "CANCELLED" && order.paymentStatus.toUpperCase() === "PAID"
+                        {order.status?.toUpperCase() === "CANCELLED" &&
+                        order.paymentStatus.toUpperCase() === "PAID"
                           ? " · Review payment"
                           : ""}
                       </span>
@@ -231,13 +234,19 @@ export default function OrdersTab({
                     {getNextStatuses(order).length > 0 && (
                       <select
                         value=""
-                        onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateStatus(order.id, e.target.value)
+                        }
                         className="max-w-[130px] rounded-lg border border-gray-200 bg-white px-2 py-1 text-[9px] font-bold text-gray-500 outline-none"
                         aria-label={`Update order ${order.id} status`}
                       >
-                        <option value="" disabled>Update status</option>
+                        <option value="" disabled>
+                          Update status
+                        </option>
                         {getNextStatuses(order).map((nextStatus) => (
-                          <option key={nextStatus} value={nextStatus}>{nextStatus}</option>
+                          <option key={nextStatus} value={nextStatus}>
+                            {nextStatus}
+                          </option>
                         ))}
                       </select>
                     )}

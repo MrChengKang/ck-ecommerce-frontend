@@ -423,10 +423,50 @@ export default function AdminDashboard({
     }
   };
 
+  const handleUpdateShipment = async (orderId, shipment) => {
+    const token = localStorage.getItem("ck_token");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders/${orderId}/shipment`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(shipment),
+        },
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+        window.alert(message || "Could not save shipment details.");
+        return false;
+      }
+
+      const updatedOrder = await response.json();
+
+      setOrders((orders) =>
+        orders.map((order) =>
+          order.id === orderId ? { ...order, ...updatedOrder } : order,
+        ),
+      );
+      setSelectedOrder(updatedOrder);
+      return true;
+    } catch (error) {
+      console.error("Update shipment failed:", error);
+      window.alert("Could not connect to the server.");
+      return false;
+    }
+  };
+
   const handleDeleteOrder = async (id) => {
-    if (!window.confirm(
-      "Archive this order? It will be hidden from the active list. A Pending order will be cancelled and its stock returned.",
-    ))
+    if (
+      !window.confirm(
+        "Archive this order? It will be hidden from the active list. A Pending order will be cancelled and its stock returned.",
+      )
+    )
       return;
 
     const token = localStorage.getItem("ck_token");
@@ -751,6 +791,7 @@ export default function AdminDashboard({
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
+          onUpdateShipment={handleUpdateShipment}
         />
       )}
 

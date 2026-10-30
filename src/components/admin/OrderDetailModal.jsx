@@ -1,8 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 const API_BASE_URL = "https://ck-ecommerce-backend.onrender.com";
 
-// 💡 處理圖片 URL，自動把舊的 localhost:8080 轉成 Render 域名
 const getImageUrl = (url) => {
   if (!url) return "";
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
@@ -19,7 +18,52 @@ const getImageUrl = (url) => {
   return `${API_BASE_URL}${cleanPath}`;
 };
 
-export default function OrderDetailModal({ order, onClose }) {
+export default function OrderDetailModal({ order, onClose, onUpdateShipment }) {
+  const [shippingCarrier, setShippingCarrier] = useState(
+    order?.shippingCarrier || "",
+  );
+  const [trackingNumber, setTrackingNumber] = useState(
+    order?.trackingNumber || "",
+  );
+  const [trackingUrl, setTrackingUrl] = useState(order?.trackingUrl || "");
+  const [savingShipment, setSavingShipment] = useState(false);
+  const [shipmentMessage, setShipmentMessage] = useState("");
+
+  useEffect(() => {
+    setShippingCarrier(order?.shippingCarrier || "");
+    setTrackingNumber(order?.trackingNumber || "");
+    setTrackingUrl(order?.trackingUrl || "");
+    setShipmentMessage("");
+  }, [
+    order?.id,
+    order?.shippingCarrier,
+    order?.trackingNumber,
+    order?.trackingUrl,
+  ]);
+
+  if (!order) return null;
+
+  const canUpdateShipment =
+    order.paymentStatus?.toUpperCase() === "PAID" &&
+    ["PROCESSING", "SHIPPED"].includes(order.status?.toUpperCase());
+
+  const saveShipment = async (event) => {
+    event.preventDefault();
+    setSavingShipment(true);
+    setShipmentMessage("");
+
+    const saved = await onUpdateShipment(order.id, {
+      shippingCarrier,
+      trackingNumber,
+      trackingUrl,
+    });
+
+    setSavingShipment(false);
+    setShipmentMessage(
+      saved ? "Shipment details saved." : "Could not save shipment details.",
+    );
+  };
+
   if (!order) return null;
 
   return (
@@ -79,6 +123,79 @@ export default function OrderDetailModal({ order, onClose }) {
                   </div>
                 );
               })}
+            {canUpdateShipment && (
+              <section className="space-y-4 border-t border-gray-100 pt-6">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-blue-600">
+                    Shipment
+                  </h3>
+                  {order.shippedAt && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Shipped at:{" "}
+                      {new Date(`${order.shippedAt}Z`).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <form onSubmit={saveShipment} className="space-y-3">
+                  <label className="block text-xs font-bold text-gray-500">
+                    Shipping carrier
+                    <input
+                      required
+                      maxLength={80}
+                      value={shippingCarrier}
+                      onChange={(event) =>
+                        setShippingCarrier(event.target.value)
+                      }
+                      placeholder="J&T Express"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-black"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-bold text-gray-500">
+                    Tracking number
+                    <input
+                      required
+                      maxLength={120}
+                      value={trackingNumber}
+                      onChange={(event) =>
+                        setTrackingNumber(event.target.value)
+                      }
+                      placeholder="Enter tracking number"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-black"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-bold text-gray-500">
+                    Tracking URL (optional)
+                    <input
+                      type="url"
+                      value={trackingUrl}
+                      onChange={(event) => setTrackingUrl(event.target.value)}
+                      placeholder="https://courier.example/track"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-black"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <p role="status" className="text-xs text-emerald-700">
+                      {shipmentMessage}
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={savingShipment}
+                      className="rounded-full bg-blue-600 px-6 py-3 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {savingShipment
+                        ? "Saving…"
+                        : order.status?.toUpperCase() === "SHIPPED"
+                          ? "Update shipment"
+                          : "Save and mark shipped"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
           </div>
         </div>
 
