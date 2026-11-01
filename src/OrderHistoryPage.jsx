@@ -9,8 +9,119 @@ const parseOrderDate = (dateString) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+function ProductReviewForm({ API_BASE_URL, order, item, reviewed, onSubmitted }) {
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const submitReview = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          productId: item.productId,
+          rating,
+          comment,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Could not submit your review.");
+      }
+      onSubmitted({ orderId: order.id, productId: item.productId });
+      setOpen(false);
+      setMessage("Thank you. Your review has been submitted.");
+    } catch (error) {
+      setMessage(error.message || "Could not submit your review.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (reviewed) {
+    return <p className="ml-5 text-xs font-bold text-emerald-700">✓ You reviewed this product</p>;
+  }
+
+  return (
+    <div className="ml-5">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-xs font-bold text-blue-700 hover:text-blue-900"
+        >
+          Write a review
+        </button>
+      ) : (
+        <form onSubmit={submitReview} className="max-w-xl space-y-3 rounded-2xl bg-gray-50 p-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-gray-700">Rating</label>
+            <div className="flex gap-1" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={rating === value}
+                  aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                  onClick={() => setRating(value)}
+                  className={`text-2xl ${value <= rating ? "text-amber-500" : "text-gray-300"}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="block text-xs font-bold text-gray-700">
+            Your review
+            <textarea
+              required
+              minLength={1}
+              maxLength={1000}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              rows={3}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-3 text-sm font-normal outline-none focus:border-blue-400"
+              placeholder="Share what you think about this product…"
+            />
+          </label>
+          {message && <p role="alert" className="text-xs font-semibold text-rose-600">{message}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving || !comment.trim()}
+              className="rounded-full bg-blue-700 px-4 py-2 text-[10px] font-black uppercase text-white disabled:opacity-50"
+            >
+              {saving ? "Submitting…" : "Submit review"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setMessage(""); }}
+              className="rounded-full border border-gray-200 px-4 py-2 text-[10px] font-black uppercase text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {message && !open && <p role="status" className="mt-2 text-xs font-semibold text-emerald-700">{message}</p>}
+    </div>
+  );
+}
+
 const OrderHistoryPage = ({ API_BASE_URL }) => {
   const [orders, setOrders] = useState([]);
+  const [myReviews, setMyReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [retryingOrderId, setRetryingOrderId] = useState(null);
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState(null);
@@ -39,6 +150,19 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
       );
       setOrders(sortedOrders);
       setLoadError("");
+
+      try {
+        const reviewResponse = await fetch(`${API_BASE_URL}/api/reviews/mine`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (reviewResponse.ok) {
+          const reviewData = await reviewResponse.json();
+          setMyReviews(Array.isArray(reviewData) ? reviewData : []);
+        }
+      } catch (reviewError) {
+        console.warn("Could not load existing product reviews:", reviewError);
+      }
     } catch (error) {
       console.error("Refresh order history failed:", error);
       setLoadError("Could not refresh payment status. Please try again.");
@@ -320,27 +444,34 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                 <div className="space-y-3">
                   {order.items && order.items.length > 0 ? (
                     order.items.map((item, index) => (
-                      <div
-                        key={item.id || index}
-                        className="flex justify-between items-center text-xs font-medium text-gray-700 py-1.5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-2 h-2 rounded-full bg-gray-300"></span>
+                      <div key={item.id || index} className="space-y-2">
+                        <div className="flex justify-between items-center text-xs font-medium text-gray-700 py-1.5">
+                          <div className="flex items-center gap-3">
+                            <span className="w-2 h-2 rounded-full bg-gray-300"></span>
+                            <span className="font-bold text-[#1d1d1f]">
+                              {item.productName || item.product?.name || "Product"}
+                            </span>
+                            <span className="text-gray-400 font-medium text-[11px] bg-gray-100 px-2 py-0.5 rounded-full">
+                              x {item.quantity || 1}
+                            </span>
+                          </div>
                           <span className="font-bold text-[#1d1d1f]">
-                            {item.productName ||
-                              item.product?.name ||
-                              "Product"}
-                          </span>
-                          <span className="text-gray-400 font-medium text-[11px] bg-gray-100 px-2 py-0.5 rounded-full">
-                            x {item.quantity || 1}
+                            RM{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                           </span>
                         </div>
-                        <span className="font-bold text-[#1d1d1f]">
-                          RM
-                          {((item.price || 0) * (item.quantity || 1)).toFixed(
-                            2,
+                        {item.productId &&
+                          ["COMPLETED", "DELIVERED"].includes(order.status?.toUpperCase()) &&
+                          order.paymentStatus?.toUpperCase() === "PAID" && (
+                            <ProductReviewForm
+                              API_BASE_URL={API_BASE_URL}
+                              order={order}
+                              item={item}
+                              reviewed={myReviews.some(
+                                (review) => review.orderId === order.id && review.productId === item.productId,
+                              )}
+                              onSubmitted={(review) => setMyReviews((current) => [review, ...current])}
+                            />
                           )}
-                        </span>
                       </div>
                     ))
                   ) : (

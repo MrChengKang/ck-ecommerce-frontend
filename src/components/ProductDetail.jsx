@@ -7,6 +7,7 @@ const API_BASE_URL =
 function ProductDetail({ addToCart }) {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
 
@@ -22,6 +23,13 @@ function ProductDetail({ addToCart }) {
       .then((res) => res.json())
       .then((data) => setProduct(data))
       .catch((err) => console.error("Error fetching product:", err));
+  }, [id]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/reviews/products/${id}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setReviews(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error fetching product reviews:", err));
   }, [id]);
 
   const handleAddToCart = () => {
@@ -42,6 +50,9 @@ function ProductDetail({ addToCart }) {
   }
 
   const isOutOfStock = product.stockQuantity <= 0;
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+    : 0;
 
   return (
     <div className="max-w-6xl mx-auto px-8 py-12 grid grid-cols-1 md:grid-cols-2 gap-12 items-center animate-in fade-in duration-700">
@@ -149,6 +160,53 @@ function ProductDetail({ addToCart }) {
           ← BACK TO SHOP
         </Link>
       </div>
+
+      <section className="md:col-span-2 border-t border-gray-200 pt-10">
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400">
+              Customer feedback
+            </p>
+            <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-gray-900">
+              Product reviews
+            </h2>
+          </div>
+          {reviews.length > 0 && (
+            <p className="text-sm font-bold text-amber-500">
+              ★ {averageRating.toFixed(1)} / 5
+              <span className="ml-2 text-xs font-medium text-gray-400">
+                ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
+              </span>
+            </p>
+          )}
+        </div>
+        {reviews.length === 0 ? (
+          <p className="rounded-2xl bg-gray-50 p-6 text-sm text-gray-500">
+            No reviews yet. Purchased customers can leave the first review after delivery.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {reviews.map((review) => (
+              <article key={review.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold text-gray-900">{review.reviewerName}</p>
+                  <p className="text-amber-500" aria-label={`${review.rating} out of 5 stars`}>
+                    {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                  </p>
+                </div>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
+                  {review.comment}
+                </p>
+                {review.createdAt && (
+                  <p className="mt-4 text-[10px] font-medium text-gray-400">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

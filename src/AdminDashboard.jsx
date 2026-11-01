@@ -4,6 +4,7 @@ import {
   Package,
   ShoppingCart,
   Users,
+  MessageSquare,
   LogOut,
   ChevronRight,
   Search,
@@ -25,6 +26,7 @@ import OrderDetailModal from "./components/admin/OrderDetailModal";
 import ProductsTab from "./components/admin/ProductsTab";
 import OrdersTab from "./components/admin/OrdersTab";
 import CustomersTab from "./components/admin/CustomersTab";
+import ReviewsTab from "./components/admin/ReviewsTab";
 import StatCard from "./components/admin/StatCard";
 
 const API_BASE_URL =
@@ -547,6 +549,12 @@ export default function AdminDashboard({
       path: "/admin/customers",
       icon: <Users size={20} />,
     },
+    {
+      id: "reviews",
+      label: "Reviews",
+      path: "/admin/reviews",
+      icon: <MessageSquare size={20} />,
+    },
   ];
 
   const getStatusStyles = (status) => {
@@ -774,6 +782,8 @@ export default function AdminDashboard({
                   />
                 }
               />
+
+              <Route path="reviews" element={<ReviewsTab />} />
             </Routes>
           </div>
         </main>
