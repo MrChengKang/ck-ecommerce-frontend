@@ -11,10 +11,19 @@ const parseOrderDate = (dateString) => {
 };
 
 const OrderHistoryPage = ({ API_BASE_URL }) => {
+  const ORDERS_PER_PAGE = 10;
   const [orders, setOrders] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [myReviews, setMyReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [retryingOrderId, setRetryingOrderId] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancellationError, setCancellationError] = useState("");
+  const [cancellationErrorOrderId, setCancellationErrorOrderId] = useState(null);
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState(null);
   const [paymentCheckMessage, setPaymentCheckMessage] = useState("");
   const [paymentCheckMessageOrderId, setPaymentCheckMessageOrderId] =
@@ -72,6 +81,33 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
       order.status?.toUpperCase() === "PENDING" &&
       order.paymentStatus?.toUpperCase() !== "PAID",
   );
+  const filteredOrders = orders.filter((order) => {
+    const search = orderSearch.trim().toLowerCase();
+    const isNumericSearch = /^\d+$/.test(search);
+    const matchesSearch =
+      !search ||
+      (isNumericSearch
+        ? String(order.id).includes(search)
+        : (order.orderNumber || "").toLowerCase().includes(search));
+    const matchesPayment =
+      paymentFilter === "ALL" ||
+      (order.paymentStatus || "").toUpperCase() === paymentFilter;
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      (order.status || "PENDING").toUpperCase() === statusFilter;
+    return matchesSearch && matchesPayment && matchesStatus;
+  });
+  const filteredTotalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+  const visibleOrders = filteredOrders.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    currentPage * ORDERS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    if (filteredTotalPages > 0 && currentPage > filteredTotalPages) {
+      setCurrentPage(filteredTotalPages);
+    }
+  }, [currentPage, filteredTotalPages]);
 
   useEffect(() => {
     if (!hasUnpaidPendingOrder) return undefined;
@@ -128,6 +164,45 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
       setRetryingOrderId(null);
     }
   };
+
+  const cancelOrder = async (order) => {
+    setCancellingOrderId(order.id);
+    setCancellationError("");
+    setCancellationErrorOrderId(order.id);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders/${order.id}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("ck_token")}`,
+          },
+        },
+      );
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Could not cancel this order.");
+      }
+      await loadOrders();
+      setOrderToCancel(null);
+    } catch (error) {
+      setCancellationError(
+        error.message || "Could not cancel this order. Please try again.",
+      );
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!orderToCancel || cancellingOrderId !== null) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setOrderToCancel(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [orderToCancel, cancellingOrderId]);
 
   const reconcilePayment = async (order) => {
     setCheckingPaymentOrderId(order.id);
@@ -269,6 +344,63 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
           </div>
         </div>
 
+        {orders.length > 0 && (
+          <section
+            aria-label="Search and filter orders"
+            className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 shadow-sm sm:grid-cols-3"
+          >
+            <label className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+              Search order
+              <input
+                type="search"
+                value={orderSearch}
+                onChange={(event) => {
+                  setOrderSearch(event.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Order ID or number"
+                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-gray-800 outline-none transition focus:border-blue-400"
+              />
+            </label>
+            <label className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+              Payment status
+              <select
+                value={paymentFilter}
+                onChange={(event) => {
+                  setPaymentFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
+                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-gray-800 outline-none transition focus:border-blue-400"
+              >
+                <option value="ALL">All payments</option>
+                <option value="PAID">Paid</option>
+                <option value="UNPAID">Unpaid</option>
+                <option value="FAILED">Failed</option>
+                <option value="REFUNDED">Refunded</option>
+              </select>
+            </label>
+            <label className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+              Order status
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
+                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-gray-800 outline-none transition focus:border-blue-400"
+              >
+                <option value="ALL">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="SHIPPED">Shipped</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="DELIVERED">Delivered</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </label>
+          </section>
+        )}
+
         {/* 訂單內容區塊 */}
         {orders.length === 0 ? (
           <div className="bg-white rounded-3xl p-16 text-center border border-gray-200/60 shadow-sm space-y-4 my-8">
@@ -288,9 +420,28 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
               </Link>
             </div>
           </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="rounded-3xl border border-gray-200/60 bg-white p-12 text-center shadow-sm">
+            <h3 className="text-lg font-black text-[#1d1d1f]">NO MATCHING ORDERS</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Try a different search or adjust the status filters.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setOrderSearch("");
+                setPaymentFilter("ALL");
+                setStatusFilter("ALL");
+                setCurrentPage(1);
+              }}
+              className="mt-5 rounded-full bg-[#0071e3] px-5 py-2.5 text-xs font-bold text-white transition hover:bg-[#0077ed]"
+            >
+              Clear search and filters
+            </button>
+          </div>
         ) : (
           <div className="space-y-6">
-            {orders.map((order) => (
+            {visibleOrders.map((order) => (
               <div
                 key={order.id}
                 className="bg-white rounded-3xl p-6 lg:p-8 border border-gray-200/60 shadow-sm hover:shadow-md transition-shadow duration-300 space-y-6"
@@ -400,6 +551,14 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                       {paymentCheckMessage}
                     </p>
                   )}
+                {cancellationError && cancellationErrorOrderId === order.id && (
+                  <p
+                    role="alert"
+                    className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600"
+                  >
+                    {cancellationError}
+                  </p>
+                )}
                 {order.status?.toUpperCase() === "PENDING" &&
                   order.paymentStatus?.toUpperCase() !== "PAID" && (
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
@@ -421,7 +580,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                           type="button"
                           disabled={
                             checkingPaymentOrderId === order.id ||
-                            retryingOrderId === order.id
+                            retryingOrderId === order.id ||
+                            cancellingOrderId === order.id
                           }
                           onClick={() => reconcilePayment(order)}
                           className="rounded-full border border-gray-200 bg-white px-5 py-3 text-[10px] font-black uppercase tracking-wider text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
@@ -437,7 +597,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                             type="button"
                             disabled={
                               checkingPaymentOrderId === order.id ||
-                              retryingOrderId === order.id
+                              retryingOrderId === order.id ||
+                              cancellingOrderId === order.id
                             }
                             onClick={() => retryPayment(order)}
                             className="rounded-full bg-[#0071e3] px-6 py-3 text-[10px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-[#0077ed] disabled:opacity-50"
@@ -447,6 +608,24 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                               : "Pay now / Retry"}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          disabled={
+                            checkingPaymentOrderId === order.id ||
+                            retryingOrderId === order.id ||
+                            cancellingOrderId === order.id
+                          }
+                          onClick={() => {
+                            setCancellationError("");
+                            setCancellationErrorOrderId(order.id);
+                            setOrderToCancel(order);
+                          }}
+                          className="rounded-full border border-rose-200 bg-white px-5 py-3 text-[10px] font-black uppercase tracking-wider text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50"
+                        >
+                          {cancellingOrderId === order.id
+                            ? "Cancelling…"
+                            : "Cancel order"}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -481,9 +660,125 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                 )}
               </div>
             ))}
+            {filteredTotalPages > 1 && (
+              <nav
+                aria-label="Order history pages"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-5 py-4 border border-gray-200/60 shadow-sm"
+              >
+                <p className="text-xs font-medium text-gray-500">
+                  Showing {(currentPage - 1) * ORDERS_PER_PAGE + 1}
+                  {"–"}
+                  {Math.min(currentPage * ORDERS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length} orders
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <span aria-live="polite" className="text-xs font-bold text-gray-500">
+                    Page {currentPage} of {filteredTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((page) => Math.min(filteredTotalPages, page + 1))}
+                    disabled={currentPage === filteredTotalPages}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </nav>
+            )}
           </div>
         )}
       </div>
+      {orderToCancel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              cancellingOrderId !== orderToCancel.id
+            ) {
+              setOrderToCancel(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-order-title"
+            aria-describedby="cancel-order-description"
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl"
+          >
+            <div className="p-7 sm:p-8">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-xl text-rose-600">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="m19 6-1 14H6L5 6" />
+                  <path d="M10 11v5M14 11v5" />
+                </svg>
+              </div>
+              <h2
+                id="cancel-order-title"
+                className="text-xl font-black tracking-tight text-[#1d1d1f]"
+              >
+                Cancel Order #{orderToCancel.id}?
+              </h2>
+              <p
+                id="cancel-order-description"
+                className="mt-3 text-sm leading-6 text-gray-500"
+              >
+                This will cancel your unpaid order and release its reserved
+                stock. You can’t undo this action.
+              </p>
+              {cancellationError &&
+                cancellationErrorOrderId === orderToCancel.id && (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold leading-5 text-rose-700"
+                  >
+                    {cancellationError}
+                  </p>
+                )}
+            </div>
+            <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50/70 p-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={cancellingOrderId === orderToCancel.id}
+                onClick={() => setOrderToCancel(null)}
+                className="rounded-full border border-gray-200 bg-white px-5 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Keep order
+              </button>
+              <button
+                type="button"
+                disabled={cancellingOrderId === orderToCancel.id}
+                onClick={() => cancelOrder(orderToCancel)}
+                className="rounded-full bg-rose-600 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancellingOrderId === orderToCancel.id
+                  ? "Cancelling…"
+                  : "Confirm cancellation"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };
