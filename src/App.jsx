@@ -52,7 +52,7 @@ function CheckoutSuccess() {
       <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
         <button
           onClick={() => navigate("/orders")}
-          className="w-full py-3.5 bg-black hover:bg-gray-800 text-white text-xs font-bold rounded-full transition-all cursor-pointer uppercase tracking-wider shadow-sm"
+          className="dark-primary-action w-full py-3.5 bg-black hover:bg-gray-800 text-white text-xs font-bold rounded-full transition-all cursor-pointer uppercase tracking-wider shadow-sm"
         >
           VIEW ORDER HISTORY
         </button>
@@ -94,6 +94,9 @@ function Home({
 
 function AppContent() {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState(() =>
+    localStorage.getItem("ck_theme") === "dark" ? "dark" : "light",
+  );
   const [user, setUser] = useState({
     username: localStorage.getItem("ck_username") || "",
     email: localStorage.getItem("ck_email") || "",
@@ -126,6 +129,15 @@ function AppContent() {
   });
 
   const { resetWishlist } = useWishlist();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.style.colorScheme = theme;
+    localStorage.setItem("ck_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () =>
+    setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
 
   const handleLogout = (showMsg = true) => {
     const keysToRemove = ["ck_token", "ck_role", "ck_username", "ck_email"];
@@ -375,7 +387,7 @@ function AppContent() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans antialiased flex flex-col justify-between">
+    <div className="app-shell min-h-screen font-sans antialiased flex flex-col justify-between">
       <div className="flex-grow">
         <Navbar
           isAdminPath={isAdminPath}
@@ -385,6 +397,8 @@ function AppContent() {
           handleLogout={handleLogout}
           setIsCartOpen={setIsCartOpen}
           cart={cart}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
 
         <CartSidebar
@@ -468,6 +482,8 @@ function AppContent() {
                 <AdminDashboard
                   products={products}
                   orders={orders}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
                   refreshData={() => {
                     fetchData();
                     fetchOrders();

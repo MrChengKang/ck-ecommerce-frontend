@@ -4,10 +4,205 @@ import ProductReviewForm from "./components/ProductReviewForm";
 
 const parseOrderDate = (dateString) => {
   if (!dateString) return null;
-  // LocalDateTime from the backend has no offset; new records are stored as UTC.
   const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(dateString);
   const date = new Date(hasTimezone ? dateString : `${dateString}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const ORDER_PROGRESS_STEPS = [
+  { status: "PENDING", label: "Order placed" },
+  { status: "PROCESSING", label: "Processing" },
+  { status: "SHIPPED", label: "Shipped" },
+  { status: "COMPLETED", label: "Delivered" },
+];
+
+const OrderProgressTimeline = ({ order, formatDate }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const orderStatus = (order.status || "PENDING").toUpperCase();
+  const normalizedStatus =
+    orderStatus === "DELIVERED" ? "COMPLETED" : orderStatus;
+  const isCancelled = normalizedStatus === "CANCELLED";
+
+  const activeIndex = Math.max(
+    0,
+    ORDER_PROGRESS_STEPS.findIndex((step) => step.status === normalizedStatus),
+  );
+
+  const getStepDetail = (index) => {
+    if (index === 0) {
+      return order.orderDate ? formatDate(order.orderDate) : "Order received";
+    }
+    if (index === 1) {
+      return index <= activeIndex ? "Payment confirmed" : "After payment";
+    }
+    if (index === 2) {
+      if (order.shippedAt) return formatDate(order.shippedAt);
+      return index <= activeIndex ? "On the way" : "Awaiting dispatch";
+    }
+    return index <= activeIndex ? "Delivered" : "Final step";
+  };
+
+  const currentStep = ORDER_PROGRESS_STEPS[activeIndex];
+  const summary = isCancelled
+    ? "Order cancelled"
+    : normalizedStatus === "PENDING" &&
+        order.paymentStatus?.toUpperCase() !== "PAID"
+      ? "Waiting for payment"
+      : `Order progress · ${currentStep.label}`;
+  const panelId = `order-progress-${order.id}`;
+
+  return (
+    <section
+      className={`overflow-hidden rounded-2xl border ${
+        isCancelled ? "border-rose-100 bg-rose-50/70" : "border-gray-100 bg-gray-50/80"
+      }`}
+    >
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
+          isCancelled ? "hover:bg-rose-50" : "hover:bg-gray-100/70"
+        }`}
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+              isCancelled
+                ? "bg-rose-500"
+                : normalizedStatus === "PENDING" &&
+                    order.paymentStatus?.toUpperCase() !== "PAID"
+                  ? "bg-amber-500"
+                  : "bg-blue-600"
+            }`}
+          />
+          <span
+            className={`truncate text-sm font-bold ${
+              isCancelled ? "text-rose-700" : "text-gray-800"
+            }`}
+          >
+            {summary}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-bold text-gray-500">
+          {isExpanded ? "Hide progress" : "View progress"}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            className={`h-4 w-4 transition-transform ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+          >
+            <path
+              d="m5 7.5 5 5 5-5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+      {isExpanded && (
+        <div
+          id={panelId}
+          role="region"
+          aria-label={`Order progress: ${normalizedStatus.toLowerCase()}`}
+          className="border-t border-gray-200/70 px-3 py-5 sm:px-5"
+        >
+          {isCancelled ? (
+            <p className="text-xs leading-5 text-rose-600">
+              This order was cancelled and will not continue through the delivery steps.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-4" role="list">
+                {ORDER_PROGRESS_STEPS.map((step, index) => {
+                  const isComplete = index < activeIndex;
+                  const isCurrent = index === activeIndex;
+                  const isReached = index <= activeIndex;
+
+                  return (
+                    <div
+                      key={step.status}
+                      role="listitem"
+                      aria-current={isCurrent ? "step" : undefined}
+                      className="relative flex min-w-0 flex-col items-center text-center"
+                    >
+                      {index > 0 && (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute left-0 top-[15px] h-0.5 w-1/2 ${
+                            isReached ? "bg-blue-600" : "bg-gray-200"
+                          }`}
+                        />
+                      )}
+                      {index < ORDER_PROGRESS_STEPS.length - 1 && (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute right-0 top-[15px] h-0.5 w-1/2 ${
+                            index < activeIndex ? "bg-blue-600" : "bg-gray-200"
+                          }`}
+                        />
+                      )}
+                      <span
+                        className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-black ${
+                          isComplete
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : isCurrent
+                              ? "border-blue-600 bg-white text-blue-600 ring-4 ring-blue-50"
+                              : "border-gray-200 bg-white text-gray-300"
+                        }`}
+                      >
+                        {isComplete ? (
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            className="h-4 w-4"
+                          >
+                            <path
+                              d="m5 10 3.2 3.2L15 6.5"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        ) : (
+                          index + 1
+                        )}
+                      </span>
+                      <p
+                        className={`mt-2 text-[10px] font-black leading-tight sm:text-xs ${
+                          isCurrent || isComplete ? "text-gray-800" : "text-gray-400"
+                        }`}
+                      >
+                        {step.label}
+                      </p>
+                      <p className="mt-1 hidden text-[10px] leading-tight text-gray-400 sm:block">
+                        {getStepDetail(index)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {normalizedStatus === "PENDING" && (
+                <p className="mt-4 border-t border-gray-200/70 pt-3 text-center text-xs font-semibold text-amber-700">
+                  {order.paymentStatus?.toUpperCase() === "PAID"
+                    ? "Payment received. Your order is being updated."
+                    : "Waiting for payment"}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
 };
 
 const OrderHistoryPage = ({ API_BASE_URL }) => {
@@ -23,7 +218,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancellationError, setCancellationError] = useState("");
-  const [cancellationErrorOrderId, setCancellationErrorOrderId] = useState(null);
+  const [cancellationErrorOrderId, setCancellationErrorOrderId] =
+    useState(null);
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState(null);
   const [paymentCheckMessage, setPaymentCheckMessage] = useState("");
   const [paymentCheckMessageOrderId, setPaymentCheckMessageOrderId] =
@@ -422,7 +618,9 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="rounded-3xl border border-gray-200/60 bg-white p-12 text-center shadow-sm">
-            <h3 className="text-lg font-black text-[#1d1d1f]">NO MATCHING ORDERS</h3>
+            <h3 className="text-lg font-black text-[#1d1d1f]">
+              NO MATCHING ORDERS
+            </h3>
             <p className="mt-2 text-sm text-gray-500">
               Try a different search or adjust the status filters.
             </p>
@@ -482,6 +680,8 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                   </div>
                 </div>
 
+                <OrderProgressTimeline order={order} formatDate={formatDate} />
+
                 {/* 商品列表 */}
                 <div className="space-y-3">
                   {order.items && order.items.length > 0 ? (
@@ -491,27 +691,38 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                           <div className="flex items-center gap-3">
                             <span className="w-2 h-2 rounded-full bg-gray-300"></span>
                             <span className="font-bold text-[#1d1d1f]">
-                              {item.productName || item.product?.name || "Product"}
+                              {item.productName ||
+                                item.product?.name ||
+                                "Product"}
                             </span>
                             <span className="text-gray-400 font-medium text-[11px] bg-gray-100 px-2 py-0.5 rounded-full">
                               x {item.quantity || 1}
                             </span>
                           </div>
                           <span className="font-bold text-[#1d1d1f]">
-                            RM{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                            RM
+                            {((item.price || 0) * (item.quantity || 1)).toFixed(
+                              2,
+                            )}
                           </span>
                         </div>
                         {item.productId &&
-                          ["COMPLETED", "DELIVERED"].includes(order.status?.toUpperCase()) &&
+                          ["COMPLETED", "DELIVERED"].includes(
+                            order.status?.toUpperCase(),
+                          ) &&
                           order.paymentStatus?.toUpperCase() === "PAID" && (
                             <ProductReviewForm
                               API_BASE_URL={API_BASE_URL}
                               order={order}
                               item={item}
                               reviewed={myReviews.some(
-                                (review) => review.orderId === order.id && review.productId === item.productId,
+                                (review) =>
+                                  review.orderId === order.id &&
+                                  review.productId === item.productId,
                               )}
-                              onSubmitted={(review) => setMyReviews((current) => [review, ...current])}
+                              onSubmitted={(review) =>
+                                setMyReviews((current) => [review, ...current])
+                              }
                             />
                           )}
                       </div>
@@ -668,23 +879,36 @@ const OrderHistoryPage = ({ API_BASE_URL }) => {
                 <p className="text-xs font-medium text-gray-500">
                   Showing {(currentPage - 1) * ORDERS_PER_PAGE + 1}
                   {"–"}
-                  {Math.min(currentPage * ORDERS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length} orders
+                  {Math.min(
+                    currentPage * ORDERS_PER_PAGE,
+                    filteredOrders.length,
+                  )}{" "}
+                  of {filteredOrders.length} orders
                 </p>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
                     disabled={currentPage === 1}
                     className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Previous
                   </button>
-                  <span aria-live="polite" className="text-xs font-bold text-gray-500">
+                  <span
+                    aria-live="polite"
+                    className="text-xs font-bold text-gray-500"
+                  >
                     Page {currentPage} of {filteredTotalPages}
                   </span>
                   <button
                     type="button"
-                    onClick={() => setCurrentPage((page) => Math.min(filteredTotalPages, page + 1))}
+                    onClick={() =>
+                      setCurrentPage((page) =>
+                        Math.min(filteredTotalPages, page + 1),
+                      )
+                    }
                     disabled={currentPage === filteredTotalPages}
                     className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >

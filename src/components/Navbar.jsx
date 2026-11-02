@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Heart } from "lucide-react";
 import { useWishlist } from "../context/WishlistContext";
+import ThemeToggle from "./ThemeToggle";
 
 function Navbar({
   isAdminPath,
@@ -11,6 +12,8 @@ function Navbar({
   handleLogout,
   setIsCartOpen,
   cart,
+  theme,
+  onToggleTheme,
 }) {
   const { wishlistItems } = useWishlist();
 
@@ -89,11 +92,13 @@ function Navbar({
             )}
           </Link>
 
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+
           {/* 💡 加大版 Cart 膠囊鈕 */}
           <button
             key={cart.length}
             onClick={() => setIsCartOpen(true)}
-            className="bg-[#1d1d1f] hover:bg-black text-white px-6 py-2.5 rounded-full text-xs font-bold tracking-wider flex items-center gap-3 transition-all shadow-md active:scale-95 cursor-pointer"
+            className="dark-primary-action bg-[#1d1d1f] hover:bg-black text-white px-6 py-2.5 rounded-full text-xs font-bold tracking-wider flex items-center gap-3 transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <span>CART</span>
             <span className="bg-white/20 w-[1px] h-3.5" />

@@ -139,7 +139,7 @@ function ProductDetail({ addToCart }) {
               ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
               : isAdded
                 ? "bg-emerald-600 text-white"
-                : "bg-[#1d1d1f] hover:bg-black text-white"
+                : "dark-primary-action bg-[#1d1d1f] hover:bg-black text-white"
           }`}
         >
           {isOutOfStock ? (

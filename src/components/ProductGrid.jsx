@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart } from "lucide-react";
 import { useWishlist } from "../context/WishlistContext";
@@ -13,8 +13,28 @@ function ProductGrid({
   getImageUrl,
 }) {
   const scrollRef = useRef(null);
+  const [sortBy, setSortBy] = useState("featured");
+  const [inStockOnly, setInStockOnly] = useState(false);
 
   const { isInWishlist, toggleWishlist } = useWishlist();
+
+  const displayedProducts = filteredProducts
+    .filter(
+      (product) =>
+        !inStockOnly || Number(product.stockQuantity ?? 0) > 0,
+    )
+    .sort((a, b) => {
+      if (sortBy === "price-low-high") {
+        return Number(a.price ?? 0) - Number(b.price ?? 0);
+      }
+      if (sortBy === "price-high-low") {
+        return Number(b.price ?? 0) - Number(a.price ?? 0);
+      }
+      if (sortBy === "name-a-z") {
+        return (a.name || "").localeCompare(b.name || "");
+      }
+      return 0;
+    });
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -28,7 +48,7 @@ function ProductGrid({
   return (
     <main className="max-w-7xl mx-auto p-8">
       {/* 搜尋列與分類選單 */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-8">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-8">
         {/* 搜尋框 */}
         <div className="relative w-full md:w-[450px] group">
           <input
@@ -40,13 +60,6 @@ function ProductGrid({
           />
           <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors duration-300">
             🔍
-          </span>
-        </div>
-
-        {/* 數量顯示 */}
-        <div className="hidden xl:flex items-center gap-2">
-          <span className="px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black tracking-widest text-gray-500 uppercase">
-            {filteredProducts.length} ITEMS FOUND
           </span>
         </div>
 
@@ -87,66 +100,137 @@ function ProductGrid({
         </div>
       </div>
 
+      <div className="mb-10 flex flex-col gap-4 rounded-3xl border border-gray-100 bg-white/80 px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex items-center gap-3 text-xs font-bold text-gray-600">
+          <span className="shrink-0 uppercase tracking-wider">Sort by</span>
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            className="min-w-48 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-800 outline-none transition focus:border-blue-400"
+          >
+            <option value="featured">Featured</option>
+            <option value="price-low-high">Price: low to high</option>
+            <option value="price-high-low">Price: high to low</option>
+            <option value="name-a-z">Name: A to Z</option>
+          </select>
+        </label>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 sm:justify-end">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-gray-600">
+            <input
+              type="checkbox"
+              checked={inStockOnly}
+              onChange={(event) => setInStockOnly(event.target.checked)}
+              className="h-4 w-4 accent-blue-600"
+            />
+            In stock only
+          </label>
+          <span
+            aria-live="polite"
+            className="rounded-full bg-gray-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-500"
+          >
+            {displayedProducts.length} {displayedProducts.length === 1 ? "item" : "items"}
+          </span>
+        </div>
+      </div>
+
       {/* 商品列表 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-14">
-        {filteredProducts.length > 0 ? (
+        {displayedProducts.length > 0 ? (
           <>
-            {filteredProducts.map((product) => {
+            {displayedProducts.map((product) => {
               const isFav = isInWishlist(product.id);
+              const reviewCount = Number(product.reviewCount ?? 0);
+              const averageRating = Number(product.averageRating ?? 0);
 
               return (
-                <Link
-                  to={`/product/${product.id}`}
-                  key={product.id}
-                  className="group relative"
-                >
-                  <div className="overflow-hidden rounded-[45px] bg-[#f3f3f4] border border-gray-200/80 aspect-[4/5] mb-6 shadow-sm group-hover:shadow-2xl group-hover:border-gray-300 transition-all duration-700 relative">
-                    <img
-                      src={getImageUrl(product.imageUrl)}
-                      className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-1000"
-                      alt={product.name}
-                    />
-                    <span className={`absolute bottom-4 left-4 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider shadow-sm ${Number(product.stockQuantity ?? 0) <= 0 ? "bg-red-600 text-white" : "bg-white/90 text-gray-700"}`}>
-                      {Number(product.stockQuantity ?? 0) <= 0
-                        ? "Sold Out"
-                        : `${product.stockQuantity} in stock`}
-                    </span>
-
-                    {/* 3. 愛心按鈕 (右上角) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleWishlist(product);
-                      }}
-                      className="absolute top-5 right-5 p-3 rounded-full bg-white/80 backdrop-blur-md shadow-md border border-gray-100 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
-                    >
-                      <Heart
-                        size={18}
-                        className={`transition-colors ${
-                          isFav
-                            ? "fill-red-500 text-red-500 stroke-red-500"
-                            : "text-gray-400 hover:text-black"
-                        }`}
+                <article key={product.id} className="group relative">
+                  <Link
+                    to={`/product/${product.id}`}
+                    aria-label={`View ${product.name}`}
+                    className="block rounded-[45px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/30"
+                  >
+                    <div className="relative mb-5 aspect-[4/5] overflow-hidden rounded-[45px] border border-gray-200/80 bg-[#f3f3f4] shadow-sm transition-all duration-500 group-hover:border-gray-300 group-hover:shadow-xl">
+                      <img
+                        src={getImageUrl(product.imageUrl)}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-[1.04] sm:p-6"
+                        alt={product.name}
                       />
-                    </button>
-                  </div>
+                      <span
+                        className={`absolute bottom-4 left-4 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider shadow-sm ${
+                          Number(product.stockQuantity ?? 0) <= 0
+                            ? "bg-red-600 text-white"
+                            : "bg-white/90 text-gray-700"
+                        }`}
+                      >
+                        {Number(product.stockQuantity ?? 0) <= 0
+                          ? "Sold Out"
+                          : `${product.stockQuantity} in stock`}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-start px-4">
-                    <div>
-                      <h3 className="font-black uppercase text-xs tracking-tight group-hover:text-blue-600 transition-colors">
-                        {product.name}
-                      </h3>
-                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] mt-1">
-                        {product.category}
+                    <div className="flex items-start justify-between gap-3 px-4 pb-2">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-xs font-black uppercase tracking-tight transition-colors group-hover:text-blue-600">
+                          {product.name}
+                        </h3>
+                        <p className="mt-1 text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+                          {product.category}
+                        </p>
+                        <p
+                          className="mt-2 flex min-h-4 items-center gap-1 text-[10px] font-semibold text-gray-600"
+                          aria-label={
+                            reviewCount > 0
+                              ? `Rated ${averageRating.toFixed(1)} out of 5 from ${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`
+                              : "No reviews yet"
+                          }
+                        >
+                          {reviewCount > 0 ? (
+                            <>
+                              <span aria-hidden="true" className="text-amber-500">
+                                ★
+                              </span>
+                              <span>{averageRating.toFixed(1)}</span>
+                              <span className="font-medium text-gray-400">
+                                ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium text-gray-400">
+                              No reviews yet
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-lg font-black italic sm:text-xl">
+                        RM{product.price}
                       </p>
                     </div>
-                    <p className="font-black text-xl italic">
-                      RM{product.price}
-                    </p>
-                  </div>
-                </Link>
+                  </Link>
+
+                  <button
+                    type="button"
+                    aria-label={
+                      isFav
+                        ? `Remove ${product.name} from wishlist`
+                        : `Add ${product.name} to wishlist`
+                    }
+                    aria-pressed={isFav}
+                    onClick={() => toggleWishlist(product)}
+                    className="absolute right-5 top-5 z-20 rounded-full border border-gray-100 bg-white/90 p-3 shadow-md backdrop-blur-md transition-all hover:scale-110 hover:bg-white active:scale-95"
+                  >
+                    <Heart
+                      size={18}
+                      className={`transition-colors ${
+                        isFav
+                          ? "fill-red-500 text-red-500 stroke-red-500"
+                          : "text-gray-400 hover:text-black"
+                      }`}
+                    />
+                  </button>
+                </article>
               );
             })}
           </>
@@ -154,13 +238,18 @@ function ProductGrid({
           <div className="col-span-full py-20 text-center space-y-4 animate-pulse">
             <span className="text-6xl">📦</span>
             <p className="text-gray-400 font-black uppercase tracking-widest">
-              No products found in "{selectedCategory}"
+              No products match your search or filters.
             </p>
             <button
-              onClick={() => setSelectedCategory("All")}
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedCategory("All");
+                setSortBy("featured");
+                setInStockOnly(false);
+              }}
               className="text-xs font-black underline underline-offset-4 hover:text-blue-600 cursor-pointer"
             >
-              VIEW ALL PRODUCTS
+              CLEAR SEARCH AND FILTERS
             </button>
           </div>
         )}

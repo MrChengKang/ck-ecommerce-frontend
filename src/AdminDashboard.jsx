@@ -28,6 +28,7 @@ import OrdersTab from "./components/admin/OrdersTab";
 import CustomersTab from "./components/admin/CustomersTab";
 import ReviewsTab from "./components/admin/ReviewsTab";
 import StatCard from "./components/admin/StatCard";
+import ThemeToggle from "./components/ThemeToggle";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -55,6 +56,8 @@ export default function AdminDashboard({
   products,
   orders: initialOrders = [],
   refreshData,
+  theme,
+  onToggleTheme,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -658,6 +661,7 @@ export default function AdminDashboard({
           </div>
 
           <div className="flex items-center gap-6">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <button className="relative w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-black hover:bg-gray-100 transition-all group">
               <Bell size={20} />
               <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full group-hover:scale-125 transition-transform" />
